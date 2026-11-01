@@ -42,3 +42,6 @@ Thumbs.db
 
 # Local Claude settings
 .claude/settings.local.json
+
+# Progress reports and presentations (kept local)
+/[Rr]eports/
