@@ -65,6 +65,14 @@ public class FloorBasketFollower : MonoBehaviour
     float m_EdgeInset = 0.15f;
 
     [SerializeField]
+    [Tooltip("Floor planes smaller than this, in square meters, only count when no bigger one is available.")]
+    float m_MinFloorPlaneArea = 0.25f;
+
+    [SerializeField]
+    [Tooltip("How quickly the basket follows a change in floor height. Lower glides more slowly over brief tracking glitches.")]
+    float m_FloorSharpness = 2f;
+
+    [SerializeField]
     [Tooltip("Feature points that must agree on a height, within 10 cm, before it replaces the assumed floor.")]
     int m_FloorClusterPoints = 12;
 
@@ -98,6 +106,7 @@ public class FloorBasketFollower : MonoBehaviour
     bool m_IsBasketVisible;
     FloorSource m_FloorSource;
     float m_FloorHeight;
+    float m_TargetFloorHeight;
     float m_LoggedFloorHeight;
     float m_LastTrackingTime = float.NegativeInfinity;
 
@@ -181,6 +190,7 @@ public class FloorBasketFollower : MonoBehaviour
     /// <summary>
     /// Picks the floor height from the most reliable source available this frame.
     /// A source that drops out keeps its last height rather than falling back to a worse guess.
+    /// The height the basket uses glides toward the estimate, so brief tracking glitches barely move it.
     /// </summary>
     void UpdateFloorHeight()
     {
@@ -190,16 +200,20 @@ public class FloorBasketFollower : MonoBehaviour
         else if (TryGetPointFloorHeight(out height) && m_FloorSource <= FloorSource.FeaturePoints)
             SetFloor(height, FloorSource.FeaturePoints);
         else if (m_FloorSource == FloorSource.None ||
-            (m_FloorSource == FloorSource.Assumed && Mathf.Abs(assumedHeight - m_FloorHeight) > k_AssumedFloorSlack))
+            (m_FloorSource == FloorSource.Assumed && Mathf.Abs(assumedHeight - m_TargetFloorHeight) > k_AssumedFloorSlack))
             SetFloor(assumedHeight, FloorSource.Assumed);
+
+        m_FloorHeight = Mathf.Lerp(m_FloorHeight, m_TargetFloorHeight, 1f - Mathf.Exp(-m_FloorSharpness * Time.deltaTime));
     }
 
     /// <summary>
-    /// Finds the height of the lowest upward-facing plane, so a table never wins over the floor.
+    /// Finds the floor among upward-facing planes: the lowest one big enough to trust, so neither a table
+    /// nor a brief scrap of plane wins. Without a big enough plane, the biggest one is used.
     /// </summary>
     bool TryGetPlaneFloorHeight(out float floorHeight)
     {
-        bool found = false;
+        bool foundLarge = false;
+        float largestArea = 0f;
         floorHeight = 0f;
         float cameraHeight = m_Camera.transform.position.y;
         foreach (var plane in m_PlaneManager.trackables)
@@ -213,14 +227,23 @@ public class FloorBasketFollower : MonoBehaviour
             if (height > cameraHeight - m_MinFloorDepth || height < cameraHeight - m_MaxFloorDepth)
                 continue;
 
-            if (!found || height < floorHeight)
+            float area = plane.size.x * plane.size.y;
+            if (area >= m_MinFloorPlaneArea)
+            {
+                if (!foundLarge || height < floorHeight)
+                {
+                    floorHeight = height;
+                    foundLarge = true;
+                }
+            }
+            else if (!foundLarge && area > largestArea)
             {
                 floorHeight = height;
-                found = true;
+                largestArea = area;
             }
         }
 
-        return found;
+        return foundLarge || largestArea > 0f;
     }
 
     /// <summary>
@@ -298,8 +321,12 @@ public class FloorBasketFollower : MonoBehaviour
             m_LoggedFloorHeight = height;
         }
 
+        // The first estimate is used directly; later changes glide in UpdateFloorHeight.
+        if (m_FloorSource == FloorSource.None)
+            m_FloorHeight = height;
+
         m_FloorSource = source;
-        m_FloorHeight = height;
+        m_TargetFloorHeight = height;
     }
 
     void ResetFloor()
@@ -373,7 +400,7 @@ public class FloorBasketFollower : MonoBehaviour
 
         foreach (var plane in m_PlaneManager.trackables)
         {
-            if (!IsUpwardPlane(plane) || Mathf.Abs(plane.center.y - m_FloorHeight) > m_FloorTolerance)
+            if (!IsUpwardPlane(plane) || Mathf.Abs(plane.center.y - m_TargetFloorHeight) > m_FloorTolerance)
                 continue;
 
             var boundary = plane.boundary;
