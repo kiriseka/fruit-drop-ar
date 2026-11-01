@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "command": "C:\\Users\\Pongo\\.unity\\relay\\relay_win.exe",
+      "args": ["--mcp", "--project-path", "C:\\Users\\Pongo\\My project (1)"]
+    }
+  }
+}

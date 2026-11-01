@@ -1,0 +1,2 @@
+# Store every file exactly as Unity wrote it; no line-ending conversion on checkout.
+* -text
