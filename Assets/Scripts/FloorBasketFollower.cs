@@ -130,6 +130,11 @@ public class FloorBasketFollower : MonoBehaviour
     /// </summary>
     public float floorHeight => m_FloorHeight;
 
+    /// <summary>
+    /// True when the floor height comes from a detected plane, the only source steady enough to play on.
+    /// </summary>
+    public bool hasPlaneFloor => m_FloorSource == FloorSource.Plane;
+
     void Awake()
     {
         m_PlaneManager = GetComponent<ARPlaneManager>();
@@ -384,14 +389,48 @@ public class FloorBasketFollower : MonoBehaviour
         }
 
         var target = new Vector3(origin.x + flatOffset.x, floorHeight, origin.z + flatOffset.z);
-        return m_FloorSource == FloorSource.Plane ? ClampToDetectedFloor(target) : target;
+        return m_FloorSource == FloorSource.Plane ? ClampToFloor(target) : target;
+    }
+
+    /// <summary>
+    /// True when the whole basket could rest on the detected floor at a point on the floor level:
+    /// its centre and four points the edge inset away from it all lie inside floor planes.
+    /// Checking points rather than the distance to a plane's edge also accepts spots where two
+    /// neighbouring floor planes meet.
+    /// </summary>
+    public bool IsOnDetectedFloor(Vector3 point)
+    {
+        return IsInsideFloorPlane(point) &&
+            IsInsideFloorPlane(point + new Vector3(m_EdgeInset, 0f, 0f)) &&
+            IsInsideFloorPlane(point - new Vector3(m_EdgeInset, 0f, 0f)) &&
+            IsInsideFloorPlane(point + new Vector3(0f, 0f, m_EdgeInset)) &&
+            IsInsideFloorPlane(point - new Vector3(0f, 0f, m_EdgeInset));
+    }
+
+    bool IsInsideFloorPlane(Vector3 point)
+    {
+        foreach (var plane in m_PlaneManager.trackables)
+        {
+            if (!IsUpwardPlane(plane) || Mathf.Abs(plane.center.y - m_TargetFloorHeight) > m_FloorTolerance)
+                continue;
+
+            var boundary = plane.boundary;
+            if (boundary.Length < 3)
+                continue;
+
+            var localPoint = plane.transform.InverseTransformPoint(point);
+            if (IsInsidePolygon(boundary, new Vector2(localPoint.x, localPoint.z)))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
     /// Moves a point on the floor level inside the detected floor planes. A point already inside one is kept;
     /// otherwise it goes to the nearest edge of the floor, pulled in so the whole basket rests on it.
     /// </summary>
-    Vector3 ClampToDetectedFloor(Vector3 point)
+    public Vector3 ClampToFloor(Vector3 point)
     {
         bool foundFloor = false;
         float closestDistance = float.MaxValue;

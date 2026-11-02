@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.4 step 1.
+- **Next step:** V0.4 step 2.
 - **Waiting on user:** nothing yet.
 
 ## Working rules
@@ -38,10 +38,14 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 ## V0.4 Fruit drop core
 
-- [ ] 1. **FloorBasketFollower API**, with no behaviour change:
+- [x] 1. **FloorBasketFollower API**, with no behaviour change:
   - `hasPlaneFloor`
   - public `ClampToFloor(Vector3)`
   - `IsOnDetectedFloor(Vector3)`, using the existing polygon test and edge inset
+  - **Done.** `IsOnDetectedFloor` checks the centre plus four points 0.15 m away, so spots across a seam between two floor planes still count.
+  - Added `Assets/Editor/SimTestDriver.cs`, an editor-only test driver. `SimTestDriver.RunInPlayMode("floor-edge")` writes `Temp/SimTest.log`. XR Simulation only rescans when the camera moves, so the driver sweeps the camera while it waits for a plane.
+  - **Sim:** plane floor after 0.3–0.5 s; floor y 0.004–0.005; phone 0.93 m above it; `IsOnDetectedFloor` is true at the basket and false 10 m out.
+  - **Note for V0.8:** at corners of small, newly found planes the edge clamp leaves the basket 0.05–0.07 m from the nearest edge, because the inset moves it toward the plane centre, not straight in from the edge. Clamp code unchanged since V0.3.
 - [ ] 2. **Fruit model:**
   - `RedApple` prefab, built from the basket's apple primitive and stem with the existing materials, about 11 cm across
   - `FruitType` ScriptableObject (name, prefab, points, fall speed, spawn weight, combo bonus, isHazard)
