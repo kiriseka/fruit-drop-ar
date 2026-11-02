@@ -6,8 +6,10 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.5 step 5 (version end: APK, tag, pre-release).
-- **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7. Expect the Start button not to respond to taps in V0.4 (no GraphicRaycaster, fixed in V0.5 step 3), so testing V0.5 instead is the better use of the phone.
+- **Next step:** V0.6 step 1 (FruitType assets for all six types).
+- **Paused for usage:** stopped at 80 % of the weekly window, after V0.5. A scheduled task `fruitdrop-resume-20261102-0610` resumes at 2026-11-02 06:10 UTC.
+- **Waiting on user:** phone test of V0.5 (`Builds/V0.5.apk`, GitHub pre-release v0.5) on the Realme 7, with the checklist in the release notes. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3), so V0.5 replaces the V0.4 phone test.
+- **Sim workflow change:** Unity_RunCommand refuses code that enters Play mode or builds. To run a scenario, set SessionState `SimTestDriver.Pending` to its name through Unity_RunCommand, then call Unity_ManageEditor `Play`. For builds, see V0.5 step 5.
 
 ## Working rules
 
@@ -186,7 +188,9 @@ This file is the single source of truth for the gameplay phase. Any session that
     - Restart: Countdown with score 0, streak 0, 3 lives, ×1, HUD "0" and full hearts, best still 100; then Playing
   - **Sim scenario `best`** in a new Play mode: best 100 loaded (saved 100); plan `CMMM` played as planned; Game Over on 10 with "Best 100" on the panel.
   - 0 console errors. The editor's saved best is left at 100.
-- [ ] 5. **Version end:** V0.5.
+- [x] 5. **Version end:** V0.5.
+  - **Done.** `Builds/V0.5.apk`, 35.9 MB: 0 errors, 359 warnings (the same package shader notes as V0.4). The IL2CPP build took 3.6 min. Tagged `v0.5` and published as a GitHub pre-release, with a phone checklist in the notes.
+  - Unity_RunCommand also refuses `BuildPipeline.BuildPlayer` now, so builds go through the new editor menu item **Fruit Drop > Build Android APK** (`Assets/Editor/BuildTools.cs`). Set `BuildTools.apkPath` through Unity_RunCommand, run the menu item with Unity_ManageMenuItem, and poll `Temp/Build.log` for a line starting with `Succeeded` or `Failed`.
 
 ## V0.6 Variety and difficulty
 
