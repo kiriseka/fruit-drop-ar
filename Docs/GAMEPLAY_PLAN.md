@@ -6,8 +6,8 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.5 step 3 (Game HUD).
-- **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7.
+- **Next step:** V0.5 step 4 (sim test of scoring, Game Over and the saved best score).
+- **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7. Expect the Start button not to respond to taps in V0.4 (no GraphicRaycaster, fixed in V0.5 step 3), so testing V0.5 instead is the better use of the phone.
 
 ## Working rules
 
@@ -153,11 +153,27 @@ This file is the single source of truth for the gameplay phase. Any session that
     - Restart: Countdown with score 0, 3 lives, streak 0; Playing after 3.00 s
   - `states` scenario updated for the countdown and still passes; 0 console errors.
   - Unity_RunCommand now refuses code that enters Play mode ("User interactions are not supported"). The scenario is queued through SessionState key `SimTestDriver.Pending` and Play mode is entered with Unity_ManageEditor `Play`.
-- [ ] 3. **Game HUD** (uGUI + TMP, inside the safe area):
+- [x] 3. **Game HUD** (uGUI + TMP, inside the safe area):
   - score, ×combo, hearts for lives
   - countdown text; Start button
   - Game Over panel with score, best and Restart
   - hide the leftover template UI
+  - **Done.** On Status Canvas, a `Safe Area` object (`SafeAreaFitter.cs`) now holds the status band, the Start button and the new HUD, run by `GameHUD.cs`:
+    - `Round Bar` (forest, 70 %) under the status band: score left, ×multiplier in lemon (hidden at ×1), three red hearts right; lost hearts dim to 25 %. Shown from the countdown to Game Over.
+    - `Countdown Text`: lemon 3-2-1, size 320, forest outline.
+    - `Game Over Panel` (forest, 92 %, 820 × 820): "Game Over", the score, "Best n" or "New best!", and a lemon "Play again" button wired to `GameStateManager.Restart`.
+    - Heart sprite `Assets/Textures/Heart.png`, generated from the heart curve, because LiberationSans has no ♥ glyph. `ScoreManager.isNewHighScore` added.
+    - The template UI canvas was already inactive.
+  - **Fix found on the way:** Status Canvas had no GraphicRaycaster, so on a phone a tap could not reach the Start button. The sim tests pressed it through `onClick`, which skips raycasting. Added one; the driver now checks taps with `CanTap` (EventSystem raycast at the button centre). This affects V0.4 on the phone.
+  - **Sim scenario `hud`:**
+    - a tap reaches Start when Ready, and Restart at Game Over
+    - countdown "3" with the bar showing score 0, no combo, 3 full hearts
+    - camera following the fruit for 16 s: 7 caught, score 90 = hand-worked 5×10 + 2×20; HUD shows "90" and "×2"
+    - misses: hearts 1/1/0.25, then 1/0.25/0.25, combo cleared
+    - Game Over: panel shown, bar hidden, final "90", "New best!" (best 0 → 90)
+    - Restart: panel hidden, score "0", hearts full, countdown "3", then Playing
+    - captures `Temp/SimTest-hud-{countdown,playing,gameover}.png` look right; 0 console errors
+  - In the editor the debug lines spill below the status band, under the round bar. On the phone, with debug off, only the hint line shows. The portrait layout on the phone still needs a look.
 - [ ] 4. **Sim test:**
   - a scripted round with planned catches and misses; the score matches a hand-worked total
   - 3 misses lead to Game Over; Restart resets

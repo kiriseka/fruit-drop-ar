@@ -76,6 +76,7 @@ public static class SimTestDriver
             "play" => Spawner(true),
             "states" => States(),
             "flow" => Flow(),
+            "hud" => Hud(),
             _ => null,
         };
 
@@ -461,7 +462,7 @@ public static class SimTestDriver
                 yield break;
             }
 
-            GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            FindButton("Start Button").onClick.Invoke();
             var countdown = WaitForPlaying(game);
             while (countdown.MoveNext())
                 yield return countdown.Current;
@@ -503,7 +504,7 @@ public static class SimTestDriver
         var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
         var game = Object.FindAnyObjectByType<GameStateManager>();
         var spawner = Object.FindAnyObjectByType<FruitSpawner>();
-        var button = GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>();
+        var button = FindButton("Start Button");
         yield return 0.5f;
         Log($"At start: {game.state}, Start button shown {button.gameObject.activeInHierarchy}, hint \"{Hint()}\"");
 
@@ -626,7 +627,7 @@ public static class SimTestDriver
 
         Log($"Floor y {follower.floorHeight:F3}");
         var startRotation = simCamera.rotation;
-        GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+        FindButton("Start Button").onClick.Invoke();
         yield return 0f;
         Log($"Pressed Start: {game.state}, {game.countdownRemaining:F2} s to go, spawning {spawner.isSpawning}, score {score.score}, lives {score.lives}");
 
@@ -699,6 +700,174 @@ public static class SimTestDriver
         yield return 0.3f;
         Log($"  hint \"{Hint()}\"");
         spawner.StopSpawning();
+    }
+
+    /// <summary>
+    /// V0.5 step 3: the HUD through a round. Taps reach the Start and Restart buttons; the countdown, score,
+    /// multiplier and hearts show what ScoreManager holds; the Game Over panel shows the score and the best;
+    /// Restart clears it all. Saves Game view captures of the countdown, the round and Game Over.
+    /// </summary>
+    static IEnumerator<float> Hud()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        var hud = Object.FindAnyObjectByType<GameHUD>();
+        if (hud == null)
+        {
+            Log("FAIL: no GameHUD in the scene");
+            yield break;
+        }
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        yield return 1f;
+        if (game.state != GameStateManager.GameState.Ready)
+        {
+            Log($"FAIL: game is {game.state}, not Ready, after scanning");
+            yield break;
+        }
+
+        var startButton = FindButton("Start Button");
+        var restartButton = FindButton("Restart Button");
+        Log($"Ready: a tap on Start reaches it {CanTap(startButton)}, round bar shown {FindActive("Round Bar")}");
+        int bestBefore = score.highScore;
+        startButton.onClick.Invoke();
+        yield return 0.5f;
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-hud-countdown.png"));
+        Log($"Countdown: number \"{HudText("Countdown Text")}\", round bar shown {FindActive("Round Bar")}, score \"{HudText("Score Text")}\", " +
+            $"combo \"{HudText("Combo Text")}\", hearts {Hearts()}");
+
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        // Follow the fruit that lands next, so every fruit is caught and the combo builds.
+        var camera = Camera.main.transform;
+        float aimEnd = Time.time + 16f;
+        while (Time.time < aimEnd)
+        {
+            Fruit nextToLand = null;
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                if (nextToLand == null || fruit.transform.position.y < nextToLand.transform.position.y)
+                    nextToLand = fruit;
+            }
+
+            if (nextToLand != null)
+            {
+                var spot = nextToLand.transform.position;
+                spot.y = follower.floorHeight;
+                LookAt(spot);
+            }
+
+            yield return 0f;
+        }
+
+        // The hand-worked total: catches 1-5 score 10 each, catches 6-10 score 20 each, and so on.
+        int caught = spawner.caughtCount;
+        int expected = 0;
+        for (int i = 0; i < caught; i++)
+            expected += 10 * Mathf.Min(5, 1 + i / 5);
+
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-hud-playing.png"));
+        yield return 0f;
+        Log($"Aimed for 16 s: {caught} caught, {spawner.missedCount} missed, score {score.score} (worked by hand {expected}), multiplier {score.multiplier}");
+        Log($"  HUD score \"{HudText("Score Text")}\", combo \"{HudText("Combo Text")}\", hearts {Hearts()}");
+
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        int missesSeen = 0;
+        float roundStart = Time.time;
+        while (game.state != GameStateManager.GameState.GameOver && Time.time - roundStart < 30f)
+        {
+            if (spawner.missedCount != missesSeen)
+            {
+                missesSeen = spawner.missedCount;
+                yield return 0f;
+                Log($"  miss {missesSeen}: lives {score.lives}, hearts {Hearts()}, combo \"{HudText("Combo Text")}\"");
+            }
+
+            yield return 0f;
+        }
+
+        yield return 0.3f;
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-hud-gameover.png"));
+        yield return 0f;
+        Log($"Game Over: panel shown {FindActive("Game Over Panel")}, round bar shown {FindActive("Round Bar")}, final \"{HudText("Final Score Text")}\", " +
+            $"best line \"{HudText("Best Text")}\" (best before the round {bestBefore}, now {score.highScore}), a tap on Restart reaches it {CanTap(restartButton)}");
+
+        // A fresh session keeps the best score, which is what the Best line then shows.
+        restartButton.onClick.Invoke();
+        yield return 0.5f;
+        Log($"Restart: {game.state}, panel shown {FindActive("Game Over Panel")}, round bar shown {FindActive("Round Bar")}, score \"{HudText("Score Text")}\", " +
+            $"combo \"{HudText("Combo Text")}\", hearts {Hearts()}, countdown \"{HudText("Countdown Text")}\"");
+        countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        spawner.StopSpawning();
+    }
+
+    static Transform FindDeep(string name)
+    {
+        foreach (var transform in Object.FindObjectsByType<RectTransform>(FindObjectsInactive.Include))
+        {
+            if (transform.name == name)
+                return transform;
+        }
+
+        return null;
+    }
+
+    static UnityEngine.UI.Button FindButton(string name)
+    {
+        return FindDeep(name).GetComponent<UnityEngine.UI.Button>();
+    }
+
+    static bool FindActive(string name)
+    {
+        return FindDeep(name).gameObject.activeInHierarchy;
+    }
+
+    static string HudText(string name)
+    {
+        return FindDeep(name).GetComponent<TMPro.TMP_Text>().text;
+    }
+
+    // Opacity of each heart, left to right: 1 for a life left, dimmed for a life lost.
+    static string Hearts()
+    {
+        var parts = new List<string>();
+        for (int i = 1; FindDeep($"Heart {i}") is { } heart; i++)
+            parts.Add(heart.GetComponent<UnityEngine.UI.Image>().color.a.ToString("F2"));
+
+        return string.Join("/", parts);
+    }
+
+    /// <summary>
+    /// True when a tap on the middle of the button would land on it, as the EventSystem sees it.
+    /// Pressing a button through onClick skips this, which once hid a canvas without a GraphicRaycaster.
+    /// </summary>
+    static bool CanTap(UnityEngine.UI.Button button)
+    {
+        var eventSystem = UnityEngine.EventSystems.EventSystem.current;
+        var pointer = new UnityEngine.EventSystems.PointerEventData(eventSystem)
+        {
+            position = RectTransformUtility.WorldToScreenPoint(null, button.transform.position),
+        };
+        var hits = new List<UnityEngine.EventSystems.RaycastResult>();
+        eventSystem.RaycastAll(pointer, hits);
+        return hits.Count > 0 && hits[0].gameObject.transform.IsChildOf(button.transform);
     }
 
     static string StatusText()

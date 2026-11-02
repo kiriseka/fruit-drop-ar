@@ -31,6 +31,7 @@ public class ScoreManager : MonoBehaviour
     int m_Streak;
     int m_Lives;
     int m_HighScore;
+    int m_HighScoreAtRoundStart;
 
     /// <summary>
     /// Called whenever the score, streak or lives change.
@@ -46,6 +47,11 @@ public class ScoreManager : MonoBehaviour
     public int streak => m_Streak;
     public int lives => m_Lives;
     public int highScore => m_HighScore;
+
+    /// <summary>
+    /// True once this round has beaten the best score from before it started.
+    /// </summary>
+    public bool isNewHighScore => m_Score > m_HighScoreAtRoundStart;
 
     /// <summary>
     /// Multiplier the next catch will score with.
@@ -80,6 +86,7 @@ public class ScoreManager : MonoBehaviour
         m_Score = 0;
         m_Streak = 0;
         m_Lives = m_StartingLives;
+        m_HighScoreAtRoundStart = m_HighScore;
         changed?.Invoke();
     }
 
