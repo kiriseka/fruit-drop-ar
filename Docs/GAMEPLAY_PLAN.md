@@ -6,8 +6,8 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.4 step 10 (version end: APK, tag, pre-release).
-- **Waiting on user:** nothing yet.
+- **Next step:** V0.5 step 1 (`ScoreManager.cs`).
+- **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7.
 
 ## Working rules
 
@@ -34,7 +34,8 @@ This file is the single source of truth for the gameplay phase. Any session that
   - Once the user reports a good phone test, mark the release as full and merge `gameplay` into `main`.
   - Fixes after a tag get a new tag (v0.x.1).
 - **Phone-only work** (on-device feel, profiling, playtests) goes under "Waiting on user" and is never faked.
-- **ProjectSettings churn:** XR plug-in management rewrites `preloadedAssets` in `ProjectSettings.asset` on every Play mode or build. Leave that change uncommitted; it is not part of any step.
+- **Generated churn:** XR plug-in management rewrites `preloadedAssets` in `ProjectSettings.asset` on every Play mode or build, and builds flip URP shader-prefilter flags in `Assets/Settings/URP-Performant.asset`. Leave both uncommitted; they are not part of any step.
+- **Builds:** `BuildPipeline.BuildPlayer` inside `Unity_RunCommand` returns thousands of lines of shader warnings. Start the build from `EditorApplication.delayCall`, return at once, and poll for the APK file, which keeps the tool output short.
 - **Wording:** no "built in one day" and no clock times in notes, release text or reports.
 
 ## V0.4 Fruit drop core
@@ -118,7 +119,9 @@ This file is the single source of truth for the gameplay phase. Any session that
     - spots 0.89–1.59 m away, at most 18.3° off
     - 0 errors logged during the round
     - the capture shows the basket on one landing ring, the next ring beside it, and an apple falling
-- [ ] 10. **Version end:** V0.4 APK, tag and pre-release.
+- [x] 10. **Version end:** V0.4 APK, tag and pre-release.
+  - **Done.** `Builds/V0.4.apk`, 35.9 MB: 0 errors, 359 warnings (package shader notes, as in earlier builds). The IL2CPP build took about 15 min. Tagged `v0.4` and published as a GitHub pre-release.
+  - The Android version name is still 1.0.0; renaming and versioning are in V0.8 step 3.
 
 ## V0.5 Scoring and HUD
 
