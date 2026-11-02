@@ -7,6 +7,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
 - **Next step:** V0.5 step 2 (full game states; add ScoreManager to the `Game` object and wire it to the spawner).
+- **Paused for usage:** stopped at 79 % of the 5-hour window. A scheduled task `fruitdrop-resume-20261102-0300` resumes at 2026-11-02 03:00 UTC (11:00 UTC+8).
 - **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7.
 
 ## Working rules
