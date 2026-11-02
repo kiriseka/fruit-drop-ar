@@ -73,6 +73,7 @@ public static class SimTestDriver
             "drop" => Drop(),
             "marker" => Marker(),
             "spawner" => Spawner(),
+            "states" => States(),
             _ => null,
         };
 
@@ -444,6 +445,79 @@ public static class SimTestDriver
         yield return 3.5f;
         Log($"Looking down for 12 s: {spawned - spawnedBefore} dropped, {spawner.caughtCount - caughtBefore} caught, {spawner.missedCount - missedBefore} missed");
         Log($"Landing spots {minDistance:F2}-{maxDistance:F2} m away, at most {maxAngle:F1} degrees off straight ahead");
+        spawner.StopSpawning();
+    }
+
+    /// <summary>
+    /// V0.4 step 7: Scanning until there is floor ahead, Ready with the Start button, Playing after pressing it,
+    /// and paused fruit while tracking is lost (simulated by turning the AR session off).
+    /// </summary>
+    static IEnumerator<float> States()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var button = GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>();
+        Log($"At start: {game.state}, Start button shown {button.gameObject.activeInHierarchy}");
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        yield return 0.5f;
+        Log($"Just after the first plane: {game.state}, Start button shown {button.gameObject.activeInHierarchy}");
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        yield return 1f;
+        Log($"After scanning: {game.state}, Start button shown {button.gameObject.activeInHierarchy}");
+        if (game.state != GameStateManager.GameState.Ready)
+            yield break;
+
+        button.onClick.Invoke();
+        yield return 0.1f;
+        Log($"After pressing Start: {game.state}, spawning {spawner.isSpawning}, Start button shown {button.gameObject.activeInHierarchy}");
+
+        // Wait for a fruit to be part-way down, then lose tracking.
+        Fruit falling = null;
+        float waitStart = Time.time;
+        while (falling == null && Time.time - waitStart < 6f)
+        {
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                if (fruit.transform.position.y < follower.floorHeight + 2f)
+                    falling = fruit;
+            }
+
+            yield return 0f;
+        }
+
+        if (falling == null)
+        {
+            Log("FAIL: no fruit fell within 6 s of starting");
+            yield break;
+        }
+
+        var session = Object.FindAnyObjectByType<ARSession>();
+        session.enabled = false;
+        yield return 2f;
+        float heldY = falling.transform.position.y;
+        yield return 2f;
+        Log($"Tracking off for 4 s: session {ARSession.state}, basket shown {follower.isBasketVisible}, paused {game.isPaused}, " +
+            $"fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m in the last 2 s");
+
+        session.enabled = true;
+        float resumeStart = Time.time;
+        while (game.isPaused && Time.time - resumeStart < 15f)
+            yield return 0.25f;
+
+        heldY = falling.transform.position.y;
+        yield return 0.5f;
+        Log($"Tracking back after {Time.time - resumeStart - 0.5f:F1} s: paused {game.isPaused}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.5 s");
         spawner.StopSpawning();
     }
 

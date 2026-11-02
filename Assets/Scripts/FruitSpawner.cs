@@ -141,6 +141,15 @@ public class FruitSpawner : MonoBehaviour
     }
 
     /// <summary>
+    /// True when enough floor has been detected ahead of the phone to drop fruit on it.
+    /// Spots are random, so a single false can be bad luck on a small floor rather than no floor at all.
+    /// </summary>
+    public bool HasLandingSpot()
+    {
+        return m_Camera != null && m_Floor.hasPlaneFloor && TryPickLandingSpot(out _);
+    }
+
+    /// <summary>
     /// Picks a random spot on the detected floor ahead of the phone, within the landing distance band.
     /// </summary>
     bool TryPickLandingSpot(out Vector3 spot)

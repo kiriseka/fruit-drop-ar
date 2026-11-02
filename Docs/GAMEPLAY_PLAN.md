@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.4 step 7.
+- **Next step:** V0.4 step 8.
 - **Waiting on user:** nothing yet.
 
 ## Working rules
@@ -82,11 +82,20 @@ This file is the single source of truth for the gameplay phase. Any session that
     - looking straight down: 6 dropped, 0 caught
     - landing spots 0.88–1.68 m away, at most 18.9° off straight ahead
   - **Finding:** right after the first plane appears, the floor patch is too small for the 0.8–2.5 m band and every drop is skipped. Step 7's Ready state must wait for enough floor; see that step.
-- [ ] 7. **`GameStateManager.cs` (minimal):**
+- [x] 7. **`GameStateManager.cs` (minimal):**
   - Scanning → Ready (plane floor and basket visible) → Start button → Playing
   - paused while the basket is hidden
   - check that a tap on Start doesn't trigger the template Object Spawner
   - Ready only once the spawner can find a landing spot. Expose `FruitSpawner.HasLandingSpot()` and show "Scan more floor ahead" until it is true.
+  - **Done.** GameStateManager is on the `Game` object. "Start Button" on Status Canvas: lemon F4C430 background, forest 1F3A2E text, 520 × 150, 220 px above the bottom.
+  - Ready → Scanning only after 4 failed floor checks in a row (1 s), so the random spot test doesn't make the button flicker.
+  - The template's Object Spawner and menu UI are already inactive, so a tap on Start can't spawn template shapes.
+  - **Sim scenario `states`:**
+    - Scanning at start, and still Scanning just after the first plane (patch too small)
+    - Ready with the button shown after a 10 s scan; Start leads to Playing
+    - AR session off for 4 s: basket hidden, paused, fruit moved 0.0000 m
+    - back on: resumed after 0.3 s, fruit moved 0.402 m in 0.5 s
+  - The "Scan more floor ahead" hint belongs in step 8.
 - [ ] 8. **ARStatusText:**
   - Ready and Playing hints
   - caught and missed counts in the debug lines
