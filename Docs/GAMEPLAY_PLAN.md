@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.4 step 9.
+- **Next step:** V0.4 step 10 (version end: APK, tag, pre-release).
 - **Waiting on user:** nothing yet.
 
 ## Working rules
@@ -107,10 +107,17 @@ This file is the single source of truth for the gameplay phase. Any session that
     - "Catch the falling fruit!"
     - "Paused. Point the phone at the floor to carry on"
   - Debug lines add `Game: <state> (paused)   Caught: n   Missed: n`.
-- [ ] 9. **XR Simulation play test:**
+- [x] 9. **XR Simulation play test:**
   - with the camera aimed, every fruit is caught
   - with the camera turned away, every fruit is missed
   - a capture shows fruit and marker; the console has no errors
+  - **Done.** Sim scenario `play` is the `spawner` scenario run through the Start button:
+    - Ready after a 10 s scan, then Start leads to Playing
+    - camera following the next fruit: 10 dropped, 9 caught, 0 missed, the last one still falling
+    - looking down: 6 dropped, 0 caught
+    - spots 0.89–1.59 m away, at most 18.3° off
+    - 0 errors logged during the round
+    - the capture shows the basket on one landing ring, the next ring beside it, and an apple falling
 - [ ] 10. **Version end:** V0.4 APK, tag and pre-release.
 
 ## V0.5 Scoring and HUD

@@ -72,7 +72,8 @@ public static class SimTestDriver
             "floor-edge" => FloorEdge(),
             "drop" => Drop(),
             "marker" => Marker(),
-            "spawner" => Spawner(),
+            "spawner" => Spawner(false),
+            "play" => Spawner(true),
             "states" => States(),
             _ => null,
         };
@@ -359,8 +360,10 @@ public static class SimTestDriver
     /// V0.4 step 6: 20 s with the phone turned so the basket goes under each new landing spot (all caught),
     /// then 12 s looking straight down so the basket stays 0.4 m away (all missed).
     /// Every landing spot is checked against the distance band and angle limit.
+    /// With <paramref name="fullRound"/> (V0.4 step 9) the round starts from the Start button once the game is
+    /// Ready, a frame is captured mid-round, and errors logged during the run are counted.
     /// </summary>
-    static IEnumerator<float> Spawner()
+    static IEnumerator<float> Spawner(bool fullRound)
     {
         var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
         var spawner = Object.FindAnyObjectByType<FruitSpawner>();
@@ -386,6 +389,14 @@ public static class SimTestDriver
         var camera = Camera.main.transform;
         float minDistance = float.MaxValue, maxDistance = 0f, maxAngle = 0f;
         int spawned = 0;
+        int errors = 0;
+        bool captured = !fullRound;
+        Application.LogCallback countErrors = (message, stack, type) =>
+        {
+            if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert)
+                errors++;
+        };
+        Application.logMessageReceived += countErrors;
 
         IEnumerator<float> Watch(float seconds, bool aim)
         {
@@ -420,6 +431,13 @@ public static class SimTestDriver
                     var spot = nextToLand.transform.position;
                     spot.y = follower.floorHeight;
                     LookAt(spot);
+
+                    // Capture once a fruit is low enough to be in view above its marker and the basket.
+                    if (!captured && nextToLand.transform.position.y < follower.floorHeight + 0.5f)
+                    {
+                        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-play.png"));
+                        captured = true;
+                    }
                 }
 
                 // A pooled fruit is reused for a later drop, so forget fruit that has landed.
@@ -428,7 +446,29 @@ public static class SimTestDriver
             }
         }
 
-        spawner.StartSpawning();
+        if (fullRound)
+        {
+            var game = Object.FindAnyObjectByType<GameStateManager>();
+            float readyWait = Time.time;
+            while (game.state != GameStateManager.GameState.Ready && Time.time - readyWait < 10f)
+                yield return 0.25f;
+
+            if (game.state != GameStateManager.GameState.Ready)
+            {
+                Log($"FAIL: game is {game.state}, not Ready, after scanning");
+                Application.logMessageReceived -= countErrors;
+                yield break;
+            }
+
+            GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return 0.1f;
+            Log($"Pressed Start: game {game.state}, spawning {spawner.isSpawning}");
+        }
+        else
+        {
+            spawner.StartSpawning();
+        }
+
         var aimed = Watch(20f, true);
         while (aimed.MoveNext())
             yield return aimed.Current;
@@ -445,6 +485,8 @@ public static class SimTestDriver
         yield return 3.5f;
         Log($"Looking down for 12 s: {spawned - spawnedBefore} dropped, {spawner.caughtCount - caughtBefore} caught, {spawner.missedCount - missedBefore} missed");
         Log($"Landing spots {minDistance:F2}-{maxDistance:F2} m away, at most {maxAngle:F1} degrees off straight ahead");
+        Application.logMessageReceived -= countErrors;
+        Log($"Errors logged during the round: {errors}");
         spawner.StopSpawning();
     }
 
