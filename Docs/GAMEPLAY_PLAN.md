@@ -8,7 +8,9 @@ This file is the single source of truth for the gameplay phase. Any session that
 - **Work branch:** `gameplay`.
 - **Next step:** V0.6 step 1 (FruitType assets for all six types).
 - **Paused for usage:** stopped at 80 % of the weekly window, after V0.5. A scheduled task `fruitdrop-resume-20261102-0610` resumes at 2026-11-02 06:10 UTC.
-- **Waiting on user:** phone test of V0.5 (`Builds/V0.5.apk`, GitHub pre-release v0.5) on the Realme 7, with the checklist in the release notes. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3), so V0.5 replaces the V0.4 phone test.
+- **Waiting on user:**
+  - Publish the v0.5 GitHub pre-release (tag `v0.5` is pushed): attach `Builds/V0.5.apk` as `FruitDropAR-v0.5.apk` and use `Builds/V0.5-release-notes.md`. Automated sessions were not allowed to create the release.
+  - Phone test of V0.5 (`Builds/V0.5.apk`) on the Realme 7, with the checklist in the release notes. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3), so V0.5 replaces the V0.4 phone test.
 - **Sim workflow change:** Unity_RunCommand refuses code that enters Play mode or builds. To run a scenario, set SessionState `SimTestDriver.Pending` to its name through Unity_RunCommand, then call Unity_ManageEditor `Play`. For builds, see V0.5 step 5.
 
 ## Working rules
@@ -189,7 +191,8 @@ This file is the single source of truth for the gameplay phase. Any session that
   - **Sim scenario `best`** in a new Play mode: best 100 loaded (saved 100); plan `CMMM` played as planned; Game Over on 10 with "Best 100" on the panel.
   - 0 console errors. The editor's saved best is left at 100.
 - [x] 5. **Version end:** V0.5.
-  - **Done.** `Builds/V0.5.apk`, 35.9 MB: 0 errors, 359 warnings (the same package shader notes as V0.4). The IL2CPP build took 3.6 min. Tagged `v0.5` and published as a GitHub pre-release, with a phone checklist in the notes.
+  - **Done.** `Builds/V0.5.apk`, 35.9 MB: 0 errors, 359 warnings (the same package shader notes as V0.4). The IL2CPP build took 3.6 min. `gameplay` pushed and tagged `v0.5`.
+  - The GitHub pre-release was **not** published: the session's permission check refused `gh release create`. The notes, with a phone checklist, are in `Builds/V0.5-release-notes.md` (not in git) for the user to publish.
   - Unity_RunCommand also refuses `BuildPipeline.BuildPlayer` now, so builds go through the new editor menu item **Fruit Drop > Build Android APK** (`Assets/Editor/BuildTools.cs`). Set `BuildTools.apkPath` through Unity_RunCommand, run the menu item with Unity_ManageMenuItem, and poll `Temp/Build.log` for a line starting with `Succeeded` or `Failed`.
 
 ## V0.6 Variety and difficulty
