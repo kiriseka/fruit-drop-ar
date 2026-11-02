@@ -6,8 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.5 step 2 (full game states; add ScoreManager to the `Game` object and wire it to the spawner).
-- **Paused for usage:** stopped at 79 % of the 5-hour window. A scheduled task `fruitdrop-resume-20261102-0300` resumes at 2026-11-02 03:00 UTC (12:00 local time).
+- **Next step:** V0.5 step 3 (Game HUD).
 - **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7.
 
 ## Working rules
@@ -139,9 +138,21 @@ This file is the single source of truth for the gameplay phase. Any session that
     - last miss → 0 lives, `outOfLives` fired once; a catch after it is ignored
     - high score 350, saved
     - 30 red apples in a row → 1000 with the ×5 cap
-- [ ] 2. **Full game states:**
+- [x] 2. **Full game states:**
   - Scanning, Ready, Countdown (3-2-1), Playing, Paused (tracking lost), GameOver, then Restart
   - Start is allowed only on a plane floor
+  - **Done.** ScoreManager is on the `Game` object, wired to the spawner, GameStateManager and ARStatusText. The score resets when the countdown starts, so the HUD shows full lives during it. The countdown holds while the basket is hidden. Losing the last life stops the spawner and clears falling fruit. `Restart()` goes straight to the countdown when the floor is still good, otherwise back to Scanning. `m_RestartButton` is optional until step 3 adds the panel.
+  - New hints "Get ready..." and "Game over"; debug lines add `Score: n   Lives: n`.
+  - **Sim scenario `flow`:**
+    - Start before any plane: still Scanning; floor y 0.006 after the scan
+    - Start: Countdown, 2.99 s to go, not spawning, score 0, 3 lives
+    - tracking off during the countdown: held (moved 0.000 s in 1 s), then Playing 0.99 s after tracking came back
+    - Start pressed mid-round or at Game Over: ignored
+    - tracking off while playing: Paused after 1.0 s, back to Playing 0.1 s after it returned
+    - looking down: Game Over after 3 misses, 0 lives, spawner stopped, no fruit left, nothing more dropped in 3 s
+    - Restart: Countdown with score 0, 3 lives, streak 0; Playing after 3.00 s
+  - `states` scenario updated for the countdown and still passes; 0 console errors.
+  - Unity_RunCommand now refuses code that enters Play mode ("User interactions are not supported"). The scenario is queued through SessionState key `SimTestDriver.Pending` and Play mode is entered with Unity_ManageEditor `Play`.
 - [ ] 3. **Game HUD** (uGUI + TMP, inside the safe area):
   - score, ×combo, hearts for lives
   - countdown text; Start button

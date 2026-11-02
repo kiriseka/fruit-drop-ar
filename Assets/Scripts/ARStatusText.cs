@@ -29,6 +29,10 @@ public class ARStatusText : MonoBehaviour
     FruitSpawner m_Spawner;
 
     [SerializeField]
+    [Tooltip("Optional. Adds the score and lives to the debug lines.")]
+    ScoreManager m_Score;
+
+    [SerializeField]
     [Tooltip("Also show session state, feature point and plane counts, and the phone's height above the floor under the hint. Always on in the Editor.")]
     bool m_ShowDebug;
 
@@ -76,6 +80,9 @@ public class ARStatusText : MonoBehaviour
             if (m_Game != null)
                 text += $"\nGame: {m_Game.state}{(m_Game.isPaused ? " (paused)" : "")}";
 
+            if (m_Score != null)
+                text += $"   Score: {m_Score.score}   Lives: {m_Score.lives}";
+
             if (m_Spawner != null)
                 text += $"   Caught: {m_Spawner.caughtCount}   Missed: {m_Spawner.missedCount}";
         }
@@ -95,8 +102,17 @@ public class ARStatusText : MonoBehaviour
                 return "Need more light";
         }
 
+        if (game != null && game.isPaused)
+            return "Paused. Point the phone at the floor to carry on";
+
+        if (game != null && game.state == GameStateManager.GameState.Countdown)
+            return "Get ready...";
+
         if (game != null && game.state == GameStateManager.GameState.Playing)
-            return game.isPaused ? "Paused. Point the phone at the floor to carry on" : "Catch the falling fruit!";
+            return "Catch the falling fruit!";
+
+        if (game != null && game.state == GameStateManager.GameState.GameOver)
+            return "Game over";
 
         if (game != null && game.state == GameStateManager.GameState.Ready)
             return "Floor found. Tap Start";

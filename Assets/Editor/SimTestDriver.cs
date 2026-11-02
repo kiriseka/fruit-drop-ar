@@ -75,6 +75,7 @@ public static class SimTestDriver
             "spawner" => Spawner(false),
             "play" => Spawner(true),
             "states" => States(),
+            "flow" => Flow(),
             _ => null,
         };
 
@@ -461,7 +462,10 @@ public static class SimTestDriver
             }
 
             GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
-            yield return 0.1f;
+            var countdown = WaitForPlaying(game);
+            while (countdown.MoveNext())
+                yield return countdown.Current;
+
             Log($"Pressed Start: game {game.state}, spawning {spawner.isSpawning}");
         }
         else
@@ -522,7 +526,10 @@ public static class SimTestDriver
             yield break;
 
         button.onClick.Invoke();
-        yield return 0.5f;
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
         Log($"After pressing Start: {game.state}, spawning {spawner.isSpawning}, Start button shown {button.gameObject.activeInHierarchy}, hint \"{Hint()}\"");
 
         // Wait for a fruit to be part-way down, then lose tracking.
@@ -562,6 +569,135 @@ public static class SimTestDriver
         yield return 0.5f;
         Log($"Tracking back after {Time.time - resumeStart - 0.5f:F1} s: paused {game.isPaused}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.5 s, hint \"{Hint()}\"");
         Log($"Debug lines: {StatusText().Replace('\n', '|')}");
+        spawner.StopSpawning();
+    }
+
+    /// <summary>
+    /// Waits out the 3-2-1 countdown after Start or Restart, and logs how long it took.
+    /// </summary>
+    static IEnumerator<float> WaitForPlaying(GameStateManager game)
+    {
+        float start = Time.time;
+        while (game.state == GameStateManager.GameState.Countdown && Time.time - start < 10f)
+            yield return 0f;
+
+        Log($"Countdown over after {Time.time - start:F2} s: {game.state}");
+    }
+
+    /// <summary>
+    /// V0.5 step 2: the whole flow. Start refused before a plane floor; countdown, held while tracking is lost;
+    /// Playing and Paused; Game Over after the third miss; Restart into a fresh countdown with full lives.
+    /// </summary>
+    static IEnumerator<float> Flow()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        var session = Object.FindAnyObjectByType<ARSession>();
+        if (score == null)
+        {
+            Log("FAIL: no ScoreManager in the scene");
+            yield break;
+        }
+
+        yield return 0.5f;
+        game.StartRound();
+        yield return 0.1f;
+        Log($"Start before any plane: {game.state}, floor {follower.floorSource}");
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        yield return 1f;
+        if (game.state != GameStateManager.GameState.Ready)
+        {
+            Log($"FAIL: game is {game.state}, not Ready, after scanning");
+            yield break;
+        }
+
+        Log($"Floor y {follower.floorHeight:F3}");
+        var startRotation = simCamera.rotation;
+        GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+        yield return 0f;
+        Log($"Pressed Start: {game.state}, {game.countdownRemaining:F2} s to go, spawning {spawner.isSpawning}, score {score.score}, lives {score.lives}");
+
+        // The status text refreshes every 0.25 s.
+        yield return 0.3f;
+        Log($"  hint \"{Hint()}\"");
+
+        // Lose tracking 1 s into the countdown: it should hold, then finish once tracking is back.
+        yield return 0.7f;
+        session.enabled = false;
+        yield return 2f;
+        float held = game.countdownRemaining;
+        yield return 1f;
+        Log($"Tracking off during countdown: {game.state}, paused {game.isPaused}, countdown moved {held - game.countdownRemaining:F3} s in 1 s, spawning {spawner.isSpawning}");
+        session.enabled = true;
+        float resumeStart = Time.time;
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        Log($"  (tracking back to Playing took {Time.time - resumeStart:F2} s), spawning {spawner.isSpawning}");
+
+        // Start pressed again mid-round does nothing.
+        game.StartRound();
+        Log($"Start during the round: {game.state}");
+
+        // Pause and resume as its own state.
+        yield return 1.5f;
+        session.enabled = false;
+        float pauseStart = Time.time;
+        while (game.state != GameStateManager.GameState.Paused && Time.time - pauseStart < 10f)
+            yield return 0.1f;
+        float pausedAfter = Time.time - pauseStart;
+        yield return 0.3f;
+        Log($"Tracking off while playing: {game.state} after {pausedAfter:F1} s, spawner paused {spawner.isPaused}, hint \"{Hint()}\"");
+        session.enabled = true;
+        resumeStart = Time.time;
+        while (game.state == GameStateManager.GameState.Paused && Time.time - resumeStart < 15f)
+            yield return 0.1f;
+        Log($"Tracking back: {game.state} after {Time.time - resumeStart:F1} s, spawner paused {spawner.isPaused}");
+
+        // Look straight down so every fruit misses, until the lives run out.
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        float roundStart = Time.time;
+        while (game.state != GameStateManager.GameState.GameOver && Time.time - roundStart < 30f)
+            yield return 0.1f;
+
+        yield return 0.5f;
+        Log($"Looking down: {game.state} after {Time.time - roundStart - 0.5f:F1} s, {spawner.missedCount} missed, {spawner.caughtCount} caught, " +
+            $"lives {score.lives}, score {score.score}, best {score.highScore}, spawning {spawner.isSpawning}, " +
+            $"fruit left {spawner.GetComponentsInChildren<Fruit>().Length}, hint \"{Hint()}\"");
+
+        // Nothing more is dropped after Game Over.
+        yield return 3f;
+        Log($"3 s after Game Over: {game.state}, fruit left {spawner.GetComponentsInChildren<Fruit>().Length}, missed {spawner.missedCount}");
+
+        game.StartRound();
+        Log($"Start at Game Over: {game.state}");
+
+        simCamera.rotation = startRotation;
+        yield return 1f;
+        game.Restart();
+        yield return 0f;
+        Log($"Restart: {game.state}, {game.countdownRemaining:F2} s to go, score {score.score}, lives {score.lives}, streak {score.streak}");
+        countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        Log($"  spawning {spawner.isSpawning}, caught {spawner.caughtCount}, missed {spawner.missedCount}");
+        yield return 0.3f;
+        Log($"  hint \"{Hint()}\"");
         spawner.StopSpawning();
     }
 
