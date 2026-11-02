@@ -99,6 +99,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3259080402304448131}
+  - component: {fileID: 5537566705215042829}
   m_Layer: 0
   m_Name: RedApple
   m_TagString: Untagged
@@ -122,6 +123,19 @@ Transform:
   - {fileID: 8993008420468738998}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5537566705215042829
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7131675789582433573}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0b85baf5979b004797d1b2eaf2b1ab4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fruit
+  m_SpinSpeed: 90
 --- !u!1 &7925685462028276000
 GameObject:
   m_ObjectHideFlags: 0

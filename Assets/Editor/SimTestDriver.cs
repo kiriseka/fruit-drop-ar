@@ -70,6 +70,7 @@ public static class SimTestDriver
         s_Routine = scenario switch
         {
             "floor-edge" => FloorEdge(),
+            "drop" => Drop(),
             _ => null,
         };
 
@@ -201,6 +202,72 @@ public static class SimTestDriver
         simCamera.rotation = startRotation;
         yield return 2f;
         Log($"Basket at start pose on floor: {follower.IsOnDetectedFloor(follower.basket.transform.position)}");
+    }
+
+    /// <summary>
+    /// V0.4 steps 3 and 4: single fruit dropped from the rooftop onto the basket, beside it, and with a pause.
+    /// </summary>
+    static IEnumerator<float> Drop()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        yield return 2f;
+        var fruitType = AssetDatabase.LoadAssetAtPath<FruitType>("Assets/Data/RedApple.asset");
+        var fruit = Object.Instantiate(fruitType.prefab).GetComponent<Fruit>();
+        fruit.gameObject.SetActive(false);
+        const float rooftop = 2.5f;
+
+        bool? caught = null;
+        float launchTime = 0f;
+        float landTime = 0f;
+        Vector3 landPosition = default;
+        void Landed(Fruit f, bool c)
+        {
+            caught = c;
+            landTime = Time.time;
+            landPosition = f.transform.position;
+        }
+
+        // 1. Straight above the basket: caught.
+        var basket = follower.basket.transform.position;
+        caught = null;
+        launchTime = Time.time;
+        fruit.Launch(fruitType, new Vector3(basket.x, follower.floorHeight + rooftop, basket.z), 1f, follower, Landed);
+        while (caught == null && Time.time - launchTime < 6f)
+            yield return 0.1f;
+        Log($"Above basket: caught {caught}, fell for {landTime - launchTime:F2} s");
+
+        // 2. 0.4 m beside the basket: missed on the floor.
+        basket = follower.basket.transform.position;
+        caught = null;
+        launchTime = Time.time;
+        fruit.Launch(fruitType, new Vector3(basket.x + 0.4f, follower.floorHeight + rooftop, basket.z), 1f, follower, Landed);
+        while (caught == null && Time.time - launchTime < 6f)
+            yield return 0.1f;
+        Log($"0.4 m beside basket: caught {caught}, fell for {landTime - launchTime:F2} s, landed {landPosition.y - follower.floorHeight:F3} m above the floor");
+
+        // 3. Paused for 2 s halfway down: hangs still, then is caught.
+        basket = follower.basket.transform.position;
+        caught = null;
+        launchTime = Time.time;
+        fruit.Launch(fruitType, new Vector3(basket.x, follower.floorHeight + rooftop, basket.z), 1f, follower, Landed);
+        yield return 1f;
+        fruit.isPaused = true;
+        float pausedY = fruit.transform.position.y;
+        yield return 2f;
+        Log($"Paused: moved {Mathf.Abs(fruit.transform.position.y - pausedY):F4} m in 2 s");
+        fruit.isPaused = false;
+        while (caught == null && Time.time - launchTime < 8f)
+            yield return 0.1f;
+        Log($"After pause: caught {caught}, fell for {landTime - launchTime:F2} s including the pause");
+
+        Object.Destroy(fruit.gameObject);
     }
 
     static string DescribeEdgeDistance(ARPlaneManager planeManager, FloorBasketFollower follower, Vector3 point)
