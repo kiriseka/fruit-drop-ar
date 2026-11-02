@@ -24,6 +24,11 @@ public class Fruit : MonoBehaviour
     public FruitType type => m_Type;
 
     /// <summary>
+    /// The floor the fruit falls toward, set at launch.
+    /// </summary>
+    public FloorBasketFollower floor => m_Floor;
+
+    /// <summary>
     /// While true the fruit hangs where it is, for example while tracking is lost.
     /// Pausing this way rather than with Time.timeScale keeps the basket following the phone.
     /// </summary>
