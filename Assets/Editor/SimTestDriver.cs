@@ -77,6 +77,8 @@ public static class SimTestDriver
             "states" => States(),
             "flow" => Flow(),
             "hud" => Hud(),
+            "score-round" => ScoreRound(),
+            "best" => Best(),
             _ => null,
         };
 
@@ -816,6 +818,147 @@ public static class SimTestDriver
             yield return countdown.Current;
 
         spawner.StopSpawning();
+    }
+
+    /// <summary>
+    /// Scans, waits for Ready and presses Start, then waits out the countdown. Shared by the V0.5 step 4 scenarios.
+    /// </summary>
+    static IEnumerator<float> ScanAndStart(FloorBasketFollower follower, GameStateManager game)
+    {
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        float readyWait = Time.time;
+        while (game.state != GameStateManager.GameState.Ready && Time.time - readyWait < 10f)
+            yield return 0.25f;
+
+        if (game.state != GameStateManager.GameState.Ready)
+        {
+            Log($"FAIL: game is {game.state}, not Ready, after scanning");
+            yield break;
+        }
+
+        FindButton("Start Button").onClick.Invoke();
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+    }
+
+    /// <summary>
+    /// Plays a round to a plan, one letter per fruit in landing order: C to catch it, M to let it fall.
+    /// Catching means turning the phone so the basket sits under the fruit; missing means looking straight down.
+    /// Returns once the round is over or the plan runs out.
+    /// </summary>
+    static IEnumerator<float> PlayPlan(string plan, FloorBasketFollower follower, FruitSpawner spawner, GameStateManager game, System.Text.StringBuilder outcomes)
+    {
+        void Landed(Fruit fruit, bool caught) => outcomes.Append(caught ? 'C' : 'M');
+        spawner.fruitLanded += Landed;
+        float start = Time.time;
+        while (outcomes.Length < plan.Length && game.state != GameStateManager.GameState.GameOver && Time.time - start < 60f)
+        {
+            Fruit nextToLand = null;
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                if (nextToLand == null || fruit.transform.position.y < nextToLand.transform.position.y)
+                    nextToLand = fruit;
+            }
+
+            if (nextToLand != null && plan[outcomes.Length] == 'C')
+            {
+                var spot = nextToLand.transform.position;
+                spot.y = follower.floorHeight;
+                LookAt(spot);
+            }
+            else if (nextToLand != null)
+            {
+                simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+            }
+
+            yield return 0f;
+        }
+
+        spawner.fruitLanded -= Landed;
+    }
+
+    /// <summary>
+    /// V0.5 step 4: a scripted round of planned catches and misses. The score must match the hand-worked total,
+    /// the third miss must end the round, and Restart must reset everything but the best score.
+    /// Plan CCCCCC M CC M C M, with a best score of 40 set beforehand:
+    /// catches 1-5 at ×1 = 50, catch 6 at ×2 = 70, miss (2 lives), two catches at ×1 = 90, miss (1 life),
+    /// one catch = 100, miss = Game Over on 100, a new best.
+    /// </summary>
+    static IEnumerator<float> ScoreRound()
+    {
+        const string plan = "CCCCCCMCCMCM";
+        const int expected = 100;
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        Log($"Best score at start: {score.highScore}");
+
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        if (game.state != GameStateManager.GameState.Playing)
+            yield break;
+
+        var outcomes = new System.Text.StringBuilder();
+        var play = PlayPlan(plan, follower, spawner, game, outcomes);
+        while (play.MoveNext())
+            yield return play.Current;
+
+        yield return 0.3f;
+        Log($"Planned {plan}, got {outcomes}: {(outcomes.ToString() == plan ? "as planned" : "FAIL: not as planned")}");
+        Log($"End: {game.state}, score {score.score} (worked by hand {expected}) {(score.score == expected ? "match" : "FAIL: mismatch")}, " +
+            $"lives {score.lives}, best {score.highScore}, panel final \"{HudText("Final Score Text")}\", best line \"{HudText("Best Text")}\"");
+
+        FindButton("Restart Button").onClick.Invoke();
+        yield return 0.5f;
+        Log($"Restart: {game.state}, score {score.score}, streak {score.streak}, lives {score.lives}, multiplier {score.multiplier}, best {score.highScore}, " +
+            $"HUD score \"{HudText("Score Text")}\", hearts {Hearts()}");
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        Log($"  caught {spawner.caughtCount}, missed {spawner.missedCount}");
+        spawner.StopSpawning();
+    }
+
+    /// <summary>
+    /// V0.5 step 4, run in a fresh Play mode after score-round: the best score was saved, and a weaker round
+    /// shows it on the Game Over panel instead of a new best.
+    /// </summary>
+    static IEnumerator<float> Best()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        Log($"Fresh Play mode: best {score.highScore}, saved {PlayerPrefs.GetInt("FruitDropAR.HighScore", -1)}");
+
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        if (game.state != GameStateManager.GameState.Playing)
+            yield break;
+
+        const string plan = "CMMM";
+        var outcomes = new System.Text.StringBuilder();
+        var play = PlayPlan(plan, follower, spawner, game, outcomes);
+        while (play.MoveNext())
+            yield return play.Current;
+
+        yield return 0.3f;
+        Log($"Planned {plan}, got {outcomes}; {game.state}, score {score.score} (worked by hand 10), best {score.highScore}, " +
+            $"panel final \"{HudText("Final Score Text")}\", best line \"{HudText("Best Text")}\"");
     }
 
     static Transform FindDeep(string name)

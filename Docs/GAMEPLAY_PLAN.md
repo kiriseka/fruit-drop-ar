@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.5 step 4 (sim test of scoring, Game Over and the saved best score).
+- **Next step:** V0.5 step 5 (version end: APK, tag, pre-release).
 - **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7. Expect the Start button not to respond to taps in V0.4 (no GraphicRaycaster, fixed in V0.5 step 3), so testing V0.5 instead is the better use of the phone.
 
 ## Working rules
@@ -174,10 +174,18 @@ This file is the single source of truth for the gameplay phase. Any session that
     - Restart: panel hidden, score "0", hearts full, countdown "3", then Playing
     - captures `Temp/SimTest-hud-{countdown,playing,gameover}.png` look right; 0 console errors
   - In the editor the debug lines spill below the status band, under the round bar. On the phone, with debug off, only the hint line shows. The portrait layout on the phone still needs a look.
-- [ ] 4. **Sim test:**
+- [x] 4. **Sim test:**
   - a scripted round with planned catches and misses; the score matches a hand-worked total
   - 3 misses lead to Game Over; Restart resets
   - the best score survives leaving and re-entering Play mode
+  - **Done.** Driver helpers `ScanAndStart` and `PlayPlan` play a round to a plan of C (catch: basket under the next fruit) and M (miss: look straight down).
+  - **Sim scenario `score-round`** (editor best set to 40 first):
+    - plan `CCCCCCMCCMCM`, got `CCCCCCMCCMCM`
+    - score 100, matching the hand-worked 5×10 + 1×20 (×2) + 2×10 + 1×10
+    - the third miss ends the round: Game Over, 0 lives, panel "100" and "New best!", best 40 → 100
+    - Restart: Countdown with score 0, streak 0, 3 lives, ×1, HUD "0" and full hearts, best still 100; then Playing
+  - **Sim scenario `best`** in a new Play mode: best 100 loaded (saved 100); plan `CMMM` played as planned; Game Over on 10 with "Best 100" on the panel.
+  - 0 console errors. The editor's saved best is left at 100.
 - [ ] 5. **Version end:** V0.5.
 
 ## V0.6 Variety and difficulty
