@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.5 step 1 (`ScoreManager.cs`).
+- **Next step:** V0.5 step 2 (full game states; add ScoreManager to the `Game` object and wire it to the spawner).
 - **Waiting on user:** phone test of V0.4 (`Builds/V0.4.apk`, GitHub pre-release v0.4) on the Realme 7.
 
 ## Working rules
@@ -125,10 +125,19 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 ## V0.5 Scoring and HUD
 
-- [ ] 1. **`ScoreManager.cs`:**
+- [x] 1. **`ScoreManager.cs`:**
   - score; streak; multiplier = min(5, 1 + ⌊streak/5⌋)
   - 3 lives; a miss resets the streak and costs a life
   - high score saved in PlayerPrefs; change events
+  - **Done.** The multiplier for a catch comes from the streak before it, so catches 1–5 score ×1 and catches 6–10 score ×2. Caught fruit to avoid adds its (negative) points with a floor of 0, resets the streak and costs a life; letting it fall costs nothing. Fruit landing after the last life is ignored. PlayerPrefs key `FruitDropAR.HighScore`.
+  - It is not in the scene yet; step 2 wires it.
+  - **Edit-mode rules check:** all pass.
+    - 12 red apples → 210; a miss → 2 lives
+    - golden → 310, streak 3; 2 red → 330; the 6th in a row ×2 → 350
+    - rotten let fall: no change; rotten caught → 330, 1 life
+    - last miss → 0 lives, `outOfLives` fired once; a catch after it is ignored
+    - high score 350, saved
+    - 30 red apples in a row → 1000 with the ×5 cap
 - [ ] 2. **Full game states:**
   - Scanning, Ready, Countdown (3-2-1), Playing, Paused (tracking lost), GameOver, then Restart
   - Start is allowed only on a plane floor
