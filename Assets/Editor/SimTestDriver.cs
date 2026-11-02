@@ -458,7 +458,8 @@ public static class SimTestDriver
         var game = Object.FindAnyObjectByType<GameStateManager>();
         var spawner = Object.FindAnyObjectByType<FruitSpawner>();
         var button = GameObject.Find("Status Canvas").transform.Find("Start Button").GetComponent<UnityEngine.UI.Button>();
-        Log($"At start: {game.state}, Start button shown {button.gameObject.activeInHierarchy}");
+        yield return 0.5f;
+        Log($"At start: {game.state}, Start button shown {button.gameObject.activeInHierarchy}, hint \"{Hint()}\"");
 
         var wait = WaitForPlaneFloor(follower);
         while (wait.MoveNext())
@@ -468,19 +469,19 @@ public static class SimTestDriver
             yield break;
 
         yield return 0.5f;
-        Log($"Just after the first plane: {game.state}, Start button shown {button.gameObject.activeInHierarchy}");
+        Log($"Just after the first plane: {game.state}, Start button shown {button.gameObject.activeInHierarchy}, hint \"{Hint()}\"");
         var scan = ScanRoom(10f);
         while (scan.MoveNext())
             yield return scan.Current;
 
         yield return 1f;
-        Log($"After scanning: {game.state}, Start button shown {button.gameObject.activeInHierarchy}");
+        Log($"After scanning: {game.state}, Start button shown {button.gameObject.activeInHierarchy}, hint \"{Hint()}\"");
         if (game.state != GameStateManager.GameState.Ready)
             yield break;
 
         button.onClick.Invoke();
-        yield return 0.1f;
-        Log($"After pressing Start: {game.state}, spawning {spawner.isSpawning}, Start button shown {button.gameObject.activeInHierarchy}");
+        yield return 0.5f;
+        Log($"After pressing Start: {game.state}, spawning {spawner.isSpawning}, Start button shown {button.gameObject.activeInHierarchy}, hint \"{Hint()}\"");
 
         // Wait for a fruit to be part-way down, then lose tracking.
         Fruit falling = null;
@@ -508,7 +509,7 @@ public static class SimTestDriver
         float heldY = falling.transform.position.y;
         yield return 2f;
         Log($"Tracking off for 4 s: session {ARSession.state}, basket shown {follower.isBasketVisible}, paused {game.isPaused}, " +
-            $"fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m in the last 2 s");
+            $"fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m in the last 2 s, hint \"{Hint()}\"");
 
         session.enabled = true;
         float resumeStart = Time.time;
@@ -517,8 +518,20 @@ public static class SimTestDriver
 
         heldY = falling.transform.position.y;
         yield return 0.5f;
-        Log($"Tracking back after {Time.time - resumeStart - 0.5f:F1} s: paused {game.isPaused}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.5 s");
+        Log($"Tracking back after {Time.time - resumeStart - 0.5f:F1} s: paused {game.isPaused}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.5 s, hint \"{Hint()}\"");
+        Log($"Debug lines: {StatusText().Replace('\n', '|')}");
         spawner.StopSpawning();
+    }
+
+    static string StatusText()
+    {
+        return GameObject.Find("Status Text").GetComponent<TMPro.TMP_Text>().text;
+    }
+
+    // The first line of the status text is the hint; the rest are debug lines.
+    static string Hint()
+    {
+        return StatusText().Split('\n')[0];
     }
 
     static string DescribeEdgeDistance(ARPlaneManager planeManager, FloorBasketFollower follower, Vector3 point)

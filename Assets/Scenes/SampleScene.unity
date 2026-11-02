@@ -4082,6 +4082,8 @@ MonoBehaviour:
   m_PlaneManager: {fileID: 151853166}
   m_PointCloudManager: {fileID: 331264293}
   m_Basket: {fileID: 331264294}
+  m_Game: {fileID: 437348684}
+  m_Spawner: {fileID: 437348682}
   m_ShowDebug: 0
   m_UpdateInterval: 0.25
 --- !u!114 &1018697901

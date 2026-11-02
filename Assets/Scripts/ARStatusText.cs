@@ -21,6 +21,14 @@ public class ARStatusText : MonoBehaviour
     FloorBasketFollower m_Basket;
 
     [SerializeField]
+    [Tooltip("Optional. Turns the hints into game instructions once the floor is ready.")]
+    GameStateManager m_Game;
+
+    [SerializeField]
+    [Tooltip("Optional. Adds the round's catches and misses to the debug lines.")]
+    FruitSpawner m_Spawner;
+
+    [SerializeField]
     [Tooltip("Also show session state, feature point and plane counts, and the phone's height above the floor under the hint. Always on in the Editor.")]
     bool m_ShowDebug;
 
@@ -40,7 +48,7 @@ public class ARStatusText : MonoBehaviour
         int planeCount = m_PlaneManager != null ? m_PlaneManager.trackables.count : 0;
         bool showing = m_Basket != null && m_Basket.isBasketVisible;
         var floorSource = m_Basket != null ? m_Basket.floorSource : FloorBasketFollower.FloorSource.None;
-        string text = GetHint(showing, floorSource);
+        string text = GetHint(showing, floorSource, m_Game);
 
         if (m_ShowDebug || Application.isEditor)
         {
@@ -64,12 +72,18 @@ public class ARStatusText : MonoBehaviour
             text += $"\nSession: {ARSession.state} ({ARSession.notTrackingReason})\n" +
                 $"Points: {pointCount}   Planes: {planeCount}\n" +
                 $"Floor: {floorText}";
+
+            if (m_Game != null)
+                text += $"\nGame: {m_Game.state}{(m_Game.isPaused ? " (paused)" : "")}";
+
+            if (m_Spawner != null)
+                text += $"   Caught: {m_Spawner.caughtCount}   Missed: {m_Spawner.missedCount}";
         }
 
         m_Text.text = text;
     }
 
-    static string GetHint(bool showing, FloorBasketFollower.FloorSource floorSource)
+    static string GetHint(bool showing, FloorBasketFollower.FloorSource floorSource, GameStateManager game)
     {
         switch (ARSession.notTrackingReason)
         {
@@ -81,8 +95,18 @@ public class ARStatusText : MonoBehaviour
                 return "Need more light";
         }
 
+        if (game != null && game.state == GameStateManager.GameState.Playing)
+            return game.isPaused ? "Paused. Point the phone at the floor to carry on" : "Catch the falling fruit!";
+
+        if (game != null && game.state == GameStateManager.GameState.Ready)
+            return "Floor found. Tap Start";
+
         if (showing && floorSource == FloorBasketFollower.FloorSource.Assumed)
             return "Finding the floor... move the phone slowly";
+
+        // A plane floor but no Start yet means too little floor has been found ahead for fruit to land on.
+        if (showing && game != null && floorSource == FloorBasketFollower.FloorSource.Plane)
+            return "Scan more of the floor ahead of you";
 
         if (showing)
             return "Move the phone to move the basket";

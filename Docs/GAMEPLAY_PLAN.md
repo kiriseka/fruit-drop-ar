@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.4 step 8.
+- **Next step:** V0.4 step 9.
 - **Waiting on user:** nothing yet.
 
 ## Working rules
@@ -17,7 +17,7 @@ This file is the single source of truth for the gameplay phase. Any session that
   - `Debug.Log("[ClassName] ...")`
   - scripts in `Assets/Scripts/`, prefabs in `Assets/Prefabs/Fruit/`, data in `Assets/Data/`
 - **A step is done when:**
-  1. Unity reports 0 compile errors.
+  1. Unity reports 0 compile errors. Check `EditorUtility.scriptCompilationFailed` and search the console for "error CS": compile errors arrive as plain log entries, so an Error-type filter misses them.
   2. The step's own XR Simulation check passes, scripted in Play mode with the sim camera moved by script, plus a Game-view capture where it is visual.
   3. V0.3 behaviour still holds: the plane floor reads y ≈ 0.006 and the edge stop is about 0.15 m inside the edge.
   4. It is committed on `gameplay` as "V0.x step n: ...".
@@ -96,10 +96,17 @@ This file is the single source of truth for the gameplay phase. Any session that
     - AR session off for 4 s: basket hidden, paused, fruit moved 0.0000 m
     - back on: resumed after 0.3 s, fruit moved 0.402 m in 0.5 s
   - The "Scan more floor ahead" hint belongs in step 8.
-- [ ] 8. **ARStatusText:**
+- [x] 8. **ARStatusText:**
   - Ready and Playing hints
   - caught and missed counts in the debug lines
   - optional GameStateManager reference
+  - **Done.** Hints, checked in the `states` scenario:
+    - "Finding the floor... move the phone slowly"
+    - "Scan more of the floor ahead of you" (plane floor, no landing spot yet)
+    - "Floor found. Tap Start"
+    - "Catch the falling fruit!"
+    - "Paused. Point the phone at the floor to carry on"
+  - Debug lines add `Game: <state> (paused)   Caught: n   Missed: n`.
 - [ ] 9. **XR Simulation play test:**
   - with the camera aimed, every fruit is caught
   - with the camera turned away, every fruit is missed
