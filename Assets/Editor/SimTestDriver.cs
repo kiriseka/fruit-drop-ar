@@ -72,6 +72,7 @@ public static class SimTestDriver
             "floor-edge" => FloorEdge(),
             "drop" => Drop(),
             "marker" => Marker(),
+            "spawner" => Spawner(),
             _ => null,
         };
 
@@ -161,6 +162,36 @@ public static class SimTestDriver
         Log(follower.hasPlaneFloor
             ? $"Plane floor after {Time.time - start:F1} s"
             : "FAIL: no plane floor after 30 s");
+    }
+
+    /// <summary>
+    /// Sweeps the camera left and right, near and far, like a player scanning the room before a round,
+    /// so the detected floor grows beyond the first patch. Ends facing the starting direction.
+    /// </summary>
+    static IEnumerator<float> ScanRoom(float seconds)
+    {
+        float start = Time.time;
+        float startYaw = simCamera.eulerAngles.y;
+        while (Time.time - start < seconds)
+        {
+            float t = Time.time - start;
+            simCamera.rotation = Quaternion.Euler(35f + 15f * Mathf.Sin(t * 1.3f), startYaw + 60f * Mathf.Sin(t * 0.8f), 0f);
+            yield return 0.1f;
+        }
+
+        simCamera.rotation = Quaternion.Euler(40f, startYaw, 0f);
+        float area = 0f;
+        int count = 0;
+        foreach (var plane in Object.FindAnyObjectByType<ARPlaneManager>().trackables)
+        {
+            if (plane.alignment != PlaneAlignment.HorizontalUp || plane.subsumedBy != null)
+                continue;
+
+            area += plane.size.x * plane.size.y;
+            count++;
+        }
+
+        Log($"Scanned for {seconds:F0} s: {count} upward planes, about {area:F1} m² (bounding sizes)");
     }
 
     /// <summary>
@@ -321,6 +352,99 @@ public static class SimTestDriver
 
         Log($"After landing: marker visible {marker.gameObject.activeInHierarchy}");
         Object.Destroy(fruit.gameObject);
+    }
+
+    /// <summary>
+    /// V0.4 step 6: 20 s with the phone turned so the basket goes under each new landing spot (all caught),
+    /// then 12 s looking straight down so the basket stays 0.4 m away (all missed).
+    /// Every landing spot is checked against the distance band and angle limit.
+    /// </summary>
+    static IEnumerator<float> Spawner()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        if (spawner == null)
+        {
+            Log("FAIL: no FruitSpawner in the scene");
+            yield break;
+        }
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        yield return 2f;
+        var seen = new HashSet<Fruit>();
+        var camera = Camera.main.transform;
+        float minDistance = float.MaxValue, maxDistance = 0f, maxAngle = 0f;
+        int spawned = 0;
+
+        IEnumerator<float> Watch(float seconds, bool aim)
+        {
+            float end = Time.time + seconds;
+            while (Time.time < end)
+            {
+                Fruit nextToLand = null;
+                foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+                {
+                    if (nextToLand == null || fruit.transform.position.y < nextToLand.transform.position.y)
+                        nextToLand = fruit;
+
+                    if (!seen.Add(fruit))
+                        continue;
+
+                    spawned++;
+                    var spot = fruit.transform.position;
+                    spot.y = follower.floorHeight;
+                    var flat = spot - camera.position;
+                    flat.y = 0f;
+                    var forward = Vector3.ProjectOnPlane(camera.forward, Vector3.up);
+                    if (forward.sqrMagnitude < 0.0001f)
+                        forward = Vector3.ProjectOnPlane(camera.up, Vector3.up);
+                    minDistance = Mathf.Min(minDistance, flat.magnitude);
+                    maxDistance = Mathf.Max(maxDistance, flat.magnitude);
+                    maxAngle = Mathf.Max(maxAngle, Vector3.Angle(forward, flat));
+                }
+
+                // Fruit falls for longer than the gap between drops, so follow the one that lands first.
+                if (aim && nextToLand != null)
+                {
+                    var spot = nextToLand.transform.position;
+                    spot.y = follower.floorHeight;
+                    LookAt(spot);
+                }
+
+                // A pooled fruit is reused for a later drop, so forget fruit that has landed.
+                seen.RemoveWhere(f => !f.gameObject.activeSelf);
+                yield return 0f;
+            }
+        }
+
+        spawner.StartSpawning();
+        var aimed = Watch(20f, true);
+        while (aimed.MoveNext())
+            yield return aimed.Current;
+
+        Log($"Aimed for 20 s: {spawned} dropped, {spawner.caughtCount} caught, {spawner.missedCount} missed");
+        int caughtBefore = spawner.caughtCount, missedBefore = spawner.missedCount, spawnedBefore = spawned;
+
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        var away = Watch(12f, false);
+        while (away.MoveNext())
+            yield return away.Current;
+
+        // Let the last fruit finish falling.
+        yield return 3.5f;
+        Log($"Looking down for 12 s: {spawned - spawnedBefore} dropped, {spawner.caughtCount - caughtBefore} caught, {spawner.missedCount - missedBefore} missed");
+        Log($"Landing spots {minDistance:F2}-{maxDistance:F2} m away, at most {maxAngle:F1} degrees off straight ahead");
+        spawner.StopSpawning();
     }
 
     static string DescribeEdgeDistance(ARPlaneManager planeManager, FloorBasketFollower follower, Vector3 point)

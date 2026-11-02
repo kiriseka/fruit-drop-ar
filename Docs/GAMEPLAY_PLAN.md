@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.4 step 6.
+- **Next step:** V0.4 step 7.
 - **Waiting on user:** nothing yet.
 
 ## Working rules
@@ -70,15 +70,23 @@ This file is the single source of truth for the gameplay phase. Any session that
   - **Done.** `LandingMarker.prefab` is a 0.30 m quad, so its 0.15 m radius equals the catch radius. It is nested in `RedApple.prefab` and placed 4 mm above the floor in `LateUpdate`.
   - Ring texture `Assets/Textures/LandingRing.png`: white ring at r 0.80–0.93 with dark outlines and a 15 % fill. The material is a copy of BasketShadow tinted lemon F4C430.
   - **Sim scenario `marker`:** 0.0000 m from under the fruit, 0.0040 m above the floor; hidden after landing; the capture shows the ring clearly.
-- [ ] 6. **`FruitSpawner.cs`:**
+- [x] 6. **`FruitSpawner.cs`:**
   - every 2.0 s while Playing, a landing spot ±20° of the flat forward direction, 0.8–2.5 m away
   - the spot must pass `IsOnDetectedFloor`, with up to 10 tries
   - fruit spawns at floor + 2.5 m, from an object pool
   - counts catches and misses
+  - **Done.** A `Game` object in SampleScene holds the FruitSpawner. Fruit from each FruitType has its own pool. `fruitLanded` is the event for the V0.5 ScoreManager, and `isPaused` freezes the fall and the drop timer.
+  - Saving the scene also re-serialised FloorBasketFollower's fields: the stale `m_MinFloorPoints` went out and the V0.3 fields came in at their code defaults, so behaviour is unchanged.
+  - **Sim scenario `spawner`** (with a 10 s room scan first; floor about 6 m²):
+    - camera following the fruit that lands next: 10 dropped, 9 caught, 0 missed, the last one still falling
+    - looking straight down: 6 dropped, 0 caught
+    - landing spots 0.88–1.68 m away, at most 18.9° off straight ahead
+  - **Finding:** right after the first plane appears, the floor patch is too small for the 0.8–2.5 m band and every drop is skipped. Step 7's Ready state must wait for enough floor; see that step.
 - [ ] 7. **`GameStateManager.cs` (minimal):**
   - Scanning → Ready (plane floor and basket visible) → Start button → Playing
   - paused while the basket is hidden
   - check that a tap on Start doesn't trigger the template Object Spawner
+  - Ready only once the spawner can find a landing spot. Expose `FruitSpawner.HasLandingSpot()` and show "Scan more floor ahead" until it is true.
 - [ ] 8. **ARStatusText:**
   - Ready and Playing hints
   - caught and missed counts in the debug lines
