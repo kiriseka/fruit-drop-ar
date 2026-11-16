@@ -341,10 +341,17 @@ This file is the single source of truth for the gameplay phase. Any session that
 - [x] 2. **Memory bound:** clear the sampled point IDs past 5,000 entries.
   - **Done.** `FloorBasketFollower` forgets all remembered point IDs once there are more than 5,000. The points still in view are then sampled once more; the samples themselves are a fixed ring of 500.
   - **Sim scenario `point-memory`** (the set filled by hand through reflection, since the simulation has about ten points): 5,000 remembered → kept; 5,001 → 0 after the next sampling. The floor and the basket were unaffected.
-- [ ] 3. **Clean-up:**
+- [x] 3. **Clean-up:**
   - remove unused template objects and assets, only after checking nothing references them
   - product name "Fruit Drop AR", company "kiriseka", Android ID `com.kiriseka.fruitdropar`, app icon
   - **Notes:** the iOS ID already is `com.kiriseka.fruitdropar`. With the new Android ID the app installs beside the older builds instead of over them, and the best score starts again at 0; say so in the release notes. Set the version name to match the tag from here on (it is still 1.0.0).
+  - **Done.**
+    - Removed from the scene, each only after a scan of every other component's references found none pointing into it: the inactive template `UI` canvas (231 objects: object menu, options, coaching, greeting, debug menu) and the inactive `Object Spawner`. The scene file went from about 11,300 changed lines to 1,700.
+    - Kept: the template's active touch-input objects under `Camera Offset` (they are part of the XR rig), and the template asset folders. Assets that nothing in the scene uses are not put into a build, so deleting those folders would only risk breaking the rig.
+    - Identity: product name "Fruit Drop AR", company "kiriseka", Android ID `com.kiriseka.fruitdropar`, version name 0.8.0, Android version code 8.
+    - Icon: `Assets/Editor/IconGenerator.cs` (menu **Fruit Drop > Generate App Icon**) renders the game's own basket on the lemon colour to `Assets/Textures/AppIcon.png` (1024 px) and sets it as the default icon.
+    - **Check:** the whole regression (18 scenarios) passed on the cleaned-up scene with 0 errors; the icon render shows the basket whole and centred.
+    - `ProjectSettings.asset` is committed with the identity lines only; its `preloadedAssets` churn stays out, as before.
 - [ ] 4. **Automated tests:**
   - EditMode: scoring, difficulty, catch geometry
   - PlayMode: XR Simulation floor and edge
