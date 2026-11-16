@@ -1087,13 +1087,27 @@ public static class SimTestDriver
     /// Catching means turning the phone so the basket sits under the fruit; missing means looking straight down.
     /// Returns once the round is over or the plan runs out.
     /// </summary>
-    static IEnumerator<float> PlayPlan(string plan, FloorBasketFollower follower, FruitSpawner spawner, GameStateManager game, System.Text.StringBuilder outcomes)
+    static IEnumerator<float> PlayPlan(string plan, FloorBasketFollower follower, FruitSpawner spawner, GameStateManager game, System.Text.StringBuilder outcomes, float holdAfterLanding = 0f)
     {
-        void Landed(Fruit fruit, bool caught) => outcomes.Append(caught ? 'C' : 'M');
+        // With a hold, the camera stays where it was for a moment after each fruit lands, so a capture taken
+        // then still shows the spot.
+        float holdUntil = 0f;
+        void Landed(Fruit fruit, bool caught)
+        {
+            outcomes.Append(caught ? 'C' : 'M');
+            holdUntil = Time.time + holdAfterLanding;
+        }
+
         spawner.fruitLanded += Landed;
         float start = Time.time;
         while (outcomes.Length < plan.Length && game.state != GameStateManager.GameState.GameOver && Time.time - start < 60f)
         {
+            if (Time.time < holdUntil)
+            {
+                yield return 0f;
+                continue;
+            }
+
             var nextToLand = NextToLand(spawner, follower, false);
             if (nextToLand != null && plan[outcomes.Length] == 'C')
             {
@@ -1294,6 +1308,37 @@ public static class SimTestDriver
             furthestCue = Mathf.Max(furthestCue, nearest);
         }
 
+        // Effects: the same round should give sparkles and a bounce for the catch, a splash and a buzz for each
+        // miss, a splash, a bounce and a buzz for the rotten catch, and only a splash for the rotten apple left
+        // to fall. The basket is watched for how far it squashes and whether it comes back.
+        const string expectedEffects = "Sparkle, Bounce, Splash, Vibration, Splash, Bounce, Vibration, Splash, Splash, Vibration";
+        var effects = Object.FindAnyObjectByType<CatchEffects>();
+        var effectList = new List<string>();
+        float lowestScale = 1f;
+        Transform basketBody = null;
+        void EffectPlayed(CatchEffects.Effect effect)
+        {
+            effectList.Add(effect.ToString());
+
+            // One capture a moment after the first sparkle and one after the first splash, with particles in the air.
+            int seen = effectList.FindAll(e => e == effect.ToString()).Count;
+            if (seen == 1 && (effect == CatchEffects.Effect.Sparkle || effect == CatchEffects.Effect.Splash))
+                CaptureAt(Time.time + 0.12f, $"Temp/SimTest-feedback-{effect.ToString().ToLowerInvariant()}.png");
+        }
+
+        void WatchBasket()
+        {
+            if (basketBody == null && follower.basket != null)
+                basketBody = follower.basket.transform.Find("Basket");
+
+            if (basketBody != null)
+                lowestScale = Mathf.Min(lowestScale, basketBody.localScale.y);
+        }
+
+        if (effects != null)
+            effects.played += EffectPlayed;
+
+        EditorApplication.update += WatchBasket;
         audio.played += Played;
         spawner.fruitSpawned += Spawned;
         spawner.QueueTypes(new[] { LoadType("RedApple"), LoadType("RedApple"), LoadType("RottenApple"), LoadType("RottenApple"), LoadType("RedApple") });
@@ -1305,7 +1350,7 @@ public static class SimTestDriver
             yield break;
 
         var outcomes = new System.Text.StringBuilder();
-        var play = PlayPlan(plan, follower, spawner, game, outcomes);
+        var play = PlayPlan(plan, follower, spawner, game, outcomes, 0.3f);
         while (play.MoveNext())
             yield return play.Current;
 
@@ -1326,6 +1371,34 @@ public static class SimTestDriver
         }
 
         Log($"Clips: {string.Join(", ", clips)}");
+
+        EditorApplication.update -= WatchBasket;
+        if (effects == null)
+        {
+            Log("FAIL: no CatchEffects in the scene");
+            yield break;
+        }
+
+        effects.played -= EffectPlayed;
+        string gotEffects = string.Join(", ", effectList);
+        Log($"Effects: {gotEffects}: {(gotEffects == expectedEffects ? "as planned" : "FAIL: planned " + expectedEffects)}");
+        Log($"Basket squashed to {lowestScale:F3} of its height at most; at the end it is {(basketBody != null ? basketBody.localScale.ToString("F3") : "not there")}");
+    }
+
+    // Saves a Game view capture once play time reaches the given moment.
+    static void CaptureAt(float time, string path)
+    {
+        EditorApplication.CallbackFunction wait = null;
+        wait = () =>
+        {
+            if (EditorApplication.isPlaying && Time.time < time)
+                return;
+
+            EditorApplication.update -= wait;
+            if (EditorApplication.isPlaying)
+                ScreenCapture.CaptureScreenshot(Path.GetFullPath(path));
+        };
+        EditorApplication.update += wait;
     }
 
     const string k_CurvePath = "Assets/Data/DifficultyCurve.asset";

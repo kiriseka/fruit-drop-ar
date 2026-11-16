@@ -6,9 +6,8 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** finish V0.7 step 3 (shadow; see "To finish" under that step), then V0.7 step 2 (effects), step 4 and step 5.
+- **Next step:** V0.7 step 4 (onboarding), then step 5.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
-- **Paused for usage:** stopped at a clean commit with V0.7 step 1 done and step 3 started, at about 95 % of the 5-hour window (the weekly windows are at about 26 % and 37 %). A scheduled task `fruitdrop-resume-20261117-0220` resumes at 2026-11-16 17:20 UTC. Remove this line when work resumes.
 - **Waiting on user:**
   - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
   - Listen to the five V0.7 sounds (WAVs in `Assets/Audio/`, or in the next build) and say if any should change. They were tested by event only, not by ear.
@@ -286,7 +285,7 @@ This file is the single source of truth for the gameplay phase. Any session that
   - `GameAudio.cs` on the `Game` object listens to `FruitSpawner.fruitSpawned`, `fruitLanded` and `GameStateManager.stateChanged`. The cue is 3D, placed where the fruit appears, from a pool of 4 sources at half volume; the other sounds are 2D. Rotten fruit left to fall makes no sound. The jingle starts 0.4 s after the last miss, so it does not cover the thud. The Main Camera already had the AudioListener.
   - **Sim scenario `feedback`:** planned red (catch), red (miss), rotten (catch), rotten (let fall), red (miss); got `CMCMM` and Game Over. Sounds in order: CatchPop, MissThud, RottenBuzz, MissThud, GameOver, as planned. 6 cues for 6 fruits, each 0.000 m from where its fruit appeared. 0 errors.
   - **Not checked:** how the sounds actually sound. They were tested by event, not by ear. Listening to them (on the phone, or the WAVs in `Assets/Audio/`) is under "Waiting on user"; each is one formula in `SoundGenerator.cs` if one needs changing.
-- [ ] 2. **Effects:**
+- [x] 2. **Effects:**
   - catch sparkle, and a miss splash in the fruit's colour
   - basket bounce on catch
   - about 40 ms of vibration on a miss or a rotten catch
@@ -295,13 +294,20 @@ This file is the single source of truth for the gameplay phase. Any session that
     - The bounce must scale a child of the basket, never its root: `FloorBasketFollower` owns the root's pose every frame.
     - 40 ms needs the Android vibrator through `AndroidJavaObject` and the `VIBRATE` permission (`Handheld.Vibrate` is a fixed, much longer buzz). It does nothing in the editor, so how it feels goes under "Waiting on user".
     - Extend the `feedback` scenario: one effect per event, and the basket back at its normal size afterwards.
-- [ ] 3. **Shadow:** a darker core plus a contact ring.
+  - **Done.** `CatchEffects.cs` on the `Game` object listens to `FruitSpawner.fruitLanded`. The two particle systems are set up in code (no effect prefabs) and use `Assets/Materials/EffectParticle.mat`, a copy of URP's unlit particle material.
+    - Catch: 16 lemon sparkles rising from the basket, and the basket squashes by 15 % for 0.25 s. Miss: a 16-particle splash in the fruit's colour where it landed, plus the vibration. Rotten catch: a splash in its colour at the basket, the bounce and the vibration. Rotten fruit left to fall: a splash only.
+    - The bounce scales the basket's children except the shadow, never the root.
+    - Vibration: 40 ms through the Android vibrator, with `Handheld.Vibrate` as the fallback (which also makes Unity add the VIBRATE permission). It does nothing in the editor.
+    - **Sim scenario `feedback`** (red catch, red miss, rotten catch, rotten left to fall, red miss): effects in order Sparkle, Bounce, Splash, Vibration, Splash, Bounce, Vibration, Splash, Splash, Vibration, as planned. The basket squashed to 0.850 of its height at most and was back at (1.000, 1.000, 1.000) at the end. Sounds and cues as in step 1; 0 errors. The capture shows the sparkles above the basket just after a catch.
+    - **Not checked:** the splash on the floor was not seen in a capture (the camera looks down during a planned miss), and the vibration cannot be felt in the editor. Both, and whether the particles are large enough on a phone, go under "Waiting on user".
+- [x] 3. **Shadow:** a darker core plus a contact ring.
   - **Design note:** `BasketShadow.png` was made by a one-off script that was not kept. Add a kept editor menu item that regenerates it, as `SoundGenerator` does for sounds.
   - **Started, not finished.** `Assets/Editor/ShadowGenerator.cs` (menu **Fruit Drop > Generate Shadow Texture**) is committed and its menu item was run once successfully, but the texture in the repository is still the V0.3 one.
     - The V0.3 texture, measured (darkness by distance from the middle, 1 = edge of the 0.42 m quad): 0.70 from the middle to 0.55, then 0.66 at 0.62, 0.53 at 0.7, 0.32 at 0.8, 0.12 at 0.9, 0 at 1. The basket's base ends at 0.62.
     - A first formula came out lighter than that everywhere (0.60 in the middle, 0.24 at 0.7), so that texture was discarded.
     - The formula in the file now keeps the V0.3 falloff and adds to it: about 0.85 in the middle, 0.76 at 0.55, a contact ring of about 0.87 just outside the base, and from 0.7 outward the same as V0.3. These constants have not been compiled or run yet.
-    - **To finish:** refresh, run the menu item, run `marker` and look at `Temp/SimTest-marker.png` (the basket is in view), adjust the three numbers in `ShadowGenerator.Darkness` if the ring is too strong or too faint on the grey sim floor, run `floor-edge`, then tick this step.
+  - **Done.** The corrected formula was run: `BasketShadow.png` is now 256 px (was 128), with darkness 0.85 in the middle, 0.76 at 0.55, 0.86 on the contact ring just outside the base, then 0.53 at 0.7, 0.29 at 0.8 and 0.09 at 0.9 (V0.3: 0.53, 0.32, 0.12). Same file and material, so nothing was rewired.
+    - **Check:** in the `marker` capture the basket has a darker edge where its base meets the floor, inside the same soft shadow as before. `floor-edge` reads floor y 0.005 as before. The ring is subtle on the grey sim floor; whether it is right on a real floor is for the phone test, and it is three numbers in `ShadowGenerator.Darkness`.
 - [ ] 4. **Onboarding:** a first-run "how to play" screen and a clear-space safety reminder.
   - **Design notes:**
     - A panel under `Safe Area`, shown until "Got it" is tapped, remembered with a PlayerPrefs flag. It covers the Start button.

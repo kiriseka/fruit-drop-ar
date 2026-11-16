@@ -1907,6 +1907,7 @@ GameObject:
   - component: {fileID: 437348684}
   - component: {fileID: 437348685}
   - component: {fileID: 437348686}
+  - component: {fileID: 437348687}
   m_Layer: 0
   m_Name: Game
   m_TagString: Untagged
@@ -2016,6 +2017,25 @@ MonoBehaviour:
   m_CueVolume: 0.5
   m_CueVoices: 4
   m_GameOverDelay: 0.4
+--- !u!114 &437348687
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 437348681}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31c8e080de6707b40aa2823fc9de2a85, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CatchEffects
+  m_Spawner: {fileID: 437348682}
+  m_Floor: {fileID: 331264294}
+  m_ParticleMaterial: {fileID: 2100000, guid: e2a33c238526f304084895d492a08a60, type: 2}
+  m_SparkleColor: {r: 1, g: 0.95, b: 0.6, a: 1}
+  m_BounceAmount: 0.15
+  m_BounceSeconds: 0.25
+  m_VibrationMilliseconds: 40
 --- !u!1 &451820663
 GameObject:
   m_ObjectHideFlags: 0
