@@ -105,7 +105,7 @@ public class ARStatusText : MonoBehaviour
         if (game != null && game.isPaused)
             return "Paused. Point the phone at the floor to carry on";
 
-        if (game != null && game.state == GameStateManager.GameState.Countdown)
+        if (game != null && (game.state == GameStateManager.GameState.Countdown || game.state == GameStateManager.GameState.Resuming))
             return "Get ready...";
 
         if (game != null && game.state == GameStateManager.GameState.Playing)

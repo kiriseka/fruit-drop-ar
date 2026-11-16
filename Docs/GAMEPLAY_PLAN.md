@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.8 step 1 (pause and resume).
+- **Next step:** V0.8 step 3 (clean-up and app identity).
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
   - Phone test of V0.7 (`Builds/V0.7.apk`, also on the v0.7 GitHub pre-release) on the Realme 7, with the checklist in its release notes. Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles) and the V0.7 ones.
@@ -326,11 +326,21 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 ## V0.8 Robustness
 
-- [ ] 1. **Pause and resume:**
+- [x] 1. **Pause and resume:**
   - a 3-2-1 countdown on resume after tracking loss
   - pause if the floor source drops below Plane during a round
   - **Design note:** add a `Resuming` state at the end of the `GameState` enum (so saved values keep their meaning). It keeps the score and the spawner as they are, shows the HUD countdown, and fruit stays held until it ends.
-- [ ] 2. **Memory bound:** clear the sampled point IDs past 5,000 entries.
+  - **Done.** After a pause the game goes Paused → `Resuming` (3 s, the HUD's 3-2-1, hint "Get ready...", fruit still held) → Playing. Losing tracking during the resume countdown goes back to Paused, and a fresh countdown follows.
+  - A round also pauses when the floor is not a plane for more than 0.5 s while the basket is still shown, and resumes only once a plane floor is back. `FloorBasketFollower` keeps a plane floor once it has one and only starts over after a long tracking loss, so in practice this covers the moment tracking returns but the floor is still an assumed one; before, the round carried on there.
+  - **Sim scenarios:**
+    - `states`: tracking off for 4 s holds the fruit (0.0000 m); tracking back → Resuming after 0.1 s, countdown "2" one second in with the fruit still held (0.0000 m in 1 s); Playing 2.95 s later, fruit moving again (0.504 m in 0.5 s)
+    - `flow`: Paused 1.0 s after tracking goes; Resuming 0.1 s after it returns (2.90 s to go, spawner still paused); tracking off again during the countdown → Paused; back → a fresh countdown of 2.95 s, Playing after 3.0 s
+    - `flow`, floor staged by hand (the follower switched off with its floor source set through reflection, because the simulation cannot lose the floor mid-round): not a plane for 0.3 s → still Playing; for longer → Paused after 0.51 s with the basket shown and the floor Assumed; plane back → Playing after 3.0 s
+    - `hud` unchanged: 90 as worked by hand, hearts, "New best!", Restart to the countdown; 0 errors
+  - **For the phone test:** whether the floor ever flickers off a plane during a real round, which would show as unexpected pauses.
+- [x] 2. **Memory bound:** clear the sampled point IDs past 5,000 entries.
+  - **Done.** `FloorBasketFollower` forgets all remembered point IDs once there are more than 5,000. The points still in view are then sampled once more; the samples themselves are a fixed ring of 500.
+  - **Sim scenario `point-memory`** (the set filled by hand through reflection, since the simulation has about ten points): 5,000 remembered → kept; 5,001 → 0 after the next sampling. The floor and the basket were unaffected.
 - [ ] 3. **Clean-up:**
   - remove unused template objects and assets, only after checking nothing references them
   - product name "Fruit Drop AR", company "kiriseka", Android ID `com.kiriseka.fruitdropar`, app icon

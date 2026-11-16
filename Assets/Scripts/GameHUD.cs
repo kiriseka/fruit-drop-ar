@@ -80,7 +80,7 @@ public class GameHUD : MonoBehaviour
     void Update()
     {
         // The countdown changes every frame without an event, so it is the one part polled here.
-        if (m_CountdownText == null || m_Game.state != GameStateManager.GameState.Countdown)
+        if (m_CountdownText == null || !IsCountingDown(m_Game.state))
             return;
 
         m_CountdownText.text = Mathf.CeilToInt(Mathf.Max(0.01f, m_Game.countdownRemaining)).ToString();
@@ -90,18 +90,25 @@ public class GameHUD : MonoBehaviour
     {
         bool inRound = state == GameStateManager.GameState.Countdown ||
             state == GameStateManager.GameState.Playing ||
-            state == GameStateManager.GameState.Paused;
+            state == GameStateManager.GameState.Paused ||
+            state == GameStateManager.GameState.Resuming;
 
         if (m_RoundBar != null)
             m_RoundBar.SetActive(inRound);
 
         if (m_CountdownText != null)
-            m_CountdownText.gameObject.SetActive(state == GameStateManager.GameState.Countdown);
+            m_CountdownText.gameObject.SetActive(IsCountingDown(state));
 
         if (m_GameOverPanel != null)
             m_GameOverPanel.SetActive(state == GameStateManager.GameState.GameOver);
 
         Refresh();
+    }
+
+    // The 3-2-1 before a round and the one after a pause look the same.
+    static bool IsCountingDown(GameStateManager.GameState state)
+    {
+        return state == GameStateManager.GameState.Countdown || state == GameStateManager.GameState.Resuming;
     }
 
     void Refresh()

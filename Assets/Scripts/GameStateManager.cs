@@ -20,6 +20,9 @@ public class GameStateManager : MonoBehaviour
         Playing,
         Paused,
         GameOver,
+
+        // Added last, so the values of the states above stay what they were.
+        Resuming,
     }
 
     [SerializeField]
@@ -47,6 +50,15 @@ public class GameStateManager : MonoBehaviour
     float m_CountdownSeconds = 3f;
 
     [SerializeField]
+    [Tooltip("Seconds of 3-2-1 countdown before fruit moves again after a pause, so the player can find the basket and the fruit first.")]
+    float m_ResumeSeconds = 3f;
+
+    [SerializeField]
+    [Tooltip("Seconds the floor can be something rougher than a plane during a round before the round pauses. " +
+        "Long enough to ride out a flicker, short enough that the basket does not sit at a wrong height for long.")]
+    float m_FloorLossGraceSeconds = 0.5f;
+
+    [SerializeField]
     [Tooltip("Seconds between checks for enough detected floor while scanning.")]
     float m_FloorCheckInterval = 0.25f;
 
@@ -59,6 +71,7 @@ public class GameStateManager : MonoBehaviour
     float m_NextFloorCheckTime;
     int m_FailedChecks;
     float m_CountdownRemaining;
+    float m_FloorLostSeconds;
 
     /// <summary>
     /// Where the game is in its flow.
@@ -66,14 +79,14 @@ public class GameStateManager : MonoBehaviour
     public GameState state => m_State;
 
     /// <summary>
-    /// True while a round or its countdown is held because tracking was lost.
+    /// True while a round or its countdown is held because tracking or the floor was lost.
     /// </summary>
     public bool isPaused => m_State == GameState.Paused || (m_State == GameState.Countdown && !m_Floor.isBasketVisible);
 
     /// <summary>
-    /// Seconds left before fruit starts to fall, during the countdown.
+    /// Seconds left before fruit starts to fall, or moves again after a pause, during either countdown.
     /// </summary>
-    public float countdownRemaining => m_State == GameState.Countdown ? m_CountdownRemaining : 0f;
+    public float countdownRemaining => m_State == GameState.Countdown || m_State == GameState.Resuming ? m_CountdownRemaining : 0f;
 
     /// <summary>
     /// Called with the new state whenever it changes.
@@ -130,19 +143,39 @@ public class GameStateManager : MonoBehaviour
                 break;
 
             case GameState.Playing:
-                if (!m_Floor.isBasketVisible)
+                // A round runs on a plane floor only. If the floor falls back to a rougher estimate the basket
+                // can change height, so that pauses the round too, after a moment's grace for a flicker.
+                m_FloorLostSeconds = m_Floor.hasPlaneFloor ? 0f : m_FloorLostSeconds + Time.deltaTime;
+                if (!m_Floor.isBasketVisible || m_FloorLostSeconds > m_FloorLossGraceSeconds)
                 {
                     m_Spawner.isPaused = true;
-                    Debug.Log("[GameStateManager] Tracking lost, round paused");
+                    Debug.Log($"[GameStateManager] {(m_Floor.isBasketVisible ? "Floor plane" : "Tracking")} lost, round paused");
                     SetState(GameState.Paused);
                 }
                 break;
 
             case GameState.Paused:
-                if (m_Floor.isBasketVisible)
+                if (m_Floor.isBasketVisible && m_Floor.hasPlaneFloor)
+                {
+                    // Fruit stays held through a 3-2-1, so the player can find the basket and the fruit again.
+                    m_FloorLostSeconds = 0f;
+                    m_CountdownRemaining = m_ResumeSeconds;
+                    Debug.Log("[GameStateManager] Tracking and floor back, resuming");
+                    SetState(GameState.Resuming);
+                }
+                break;
+
+            case GameState.Resuming:
+                if (!m_Floor.isBasketVisible || !m_Floor.hasPlaneFloor)
+                {
+                    SetState(GameState.Paused);
+                    break;
+                }
+
+                m_CountdownRemaining -= Time.deltaTime;
+                if (m_CountdownRemaining <= 0f)
                 {
                     m_Spawner.isPaused = false;
-                    Debug.Log("[GameStateManager] Tracking back, round resumed");
                     SetState(GameState.Playing);
                 }
                 break;
@@ -218,13 +251,14 @@ public class GameStateManager : MonoBehaviour
 
     void BeginPlaying()
     {
+        m_FloorLostSeconds = 0f;
         SetState(GameState.Playing);
         m_Spawner.StartSpawning();
     }
 
     void OnOutOfLives()
     {
-        if (m_State != GameState.Playing && m_State != GameState.Paused)
+        if (m_State != GameState.Playing && m_State != GameState.Paused && m_State != GameState.Resuming)
             return;
 
         m_Spawner.StopSpawning();

@@ -26,7 +26,7 @@ public static class SimTestDriver
     const string k_SeenHowToPlayKey = "FruitDropAR.SeenHowToPlay";
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -217,6 +217,7 @@ public static class SimTestDriver
             "feedback" => Feedback(),
             "onboarding" => Onboarding(true),
             "onboarding-again" => Onboarding(false),
+            "point-memory" => PointMemory(),
             _ => null,
         };
 
@@ -813,11 +814,21 @@ public static class SimTestDriver
         session.enabled = true;
         float resumeStart = Time.time;
         while (game.isPaused && Time.time - resumeStart < 15f)
-            yield return 0.25f;
+            yield return 0.05f;
 
+        // Tracking is back: a 3-2-1 first, with the fruit still held.
+        float resumingAfter = Time.time - resumeStart;
+        heldY = falling.transform.position.y;
+        yield return 1f;
+        Log($"Tracking back after {resumingAfter:F1} s: {game.state}, {game.countdownRemaining:F2} s to go, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m in 1 s, " +
+            $"countdown \"{HudText("Countdown Text")}\", hint \"{Hint()}\"");
+        while (game.state == GameStateManager.GameState.Resuming && Time.time - resumeStart < 15f)
+            yield return 0f;
+
+        float playingAfter = Time.time - resumeStart - resumingAfter;
         heldY = falling.transform.position.y;
         yield return 0.5f;
-        Log($"Tracking back after {Time.time - resumeStart - 0.5f:F1} s: paused {game.isPaused}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.5 s, hint \"{Hint()}\"");
+        Log($"Resume countdown over after {playingAfter:F2} s: {game.state}, paused {game.isPaused}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.5 s, hint \"{Hint()}\"");
         Log($"Debug lines: {StatusText().Replace('\n', '|')}");
         spawner.StopSpawning();
     }
@@ -916,7 +927,47 @@ public static class SimTestDriver
         resumeStart = Time.time;
         while (game.state == GameStateManager.GameState.Paused && Time.time - resumeStart < 15f)
             yield return 0.1f;
-        Log($"Tracking back: {game.state} after {Time.time - resumeStart:F1} s, spawner paused {spawner.isPaused}");
+        Log($"Tracking back: {game.state} after {Time.time - resumeStart:F1} s, {game.countdownRemaining:F2} s to go, spawner paused {spawner.isPaused}");
+
+        // Tracking lost again in the middle of the resume countdown: back to Paused, and a fresh 3-2-1 after.
+        yield return 1f;
+        session.enabled = false;
+        pauseStart = Time.time;
+        while (game.state != GameStateManager.GameState.Paused && Time.time - pauseStart < 10f)
+            yield return 0.1f;
+        Log($"Tracking off during the resume countdown: {game.state}, spawner paused {spawner.isPaused}");
+        session.enabled = true;
+        resumeStart = Time.time;
+        while (game.state != GameStateManager.GameState.Resuming && Time.time - resumeStart < 15f)
+            yield return 0.05f;
+        float freshCountdown = game.countdownRemaining;
+        while (game.state == GameStateManager.GameState.Resuming && Time.time - resumeStart < 15f)
+            yield return 0f;
+        Log($"Tracking back: a fresh countdown of {freshCountdown:F2} s, then {game.state} after {Time.time - resumeStart:F1} s, spawner paused {spawner.isPaused}");
+
+        // The floor falls back to a rougher estimate while tracking carries on. The follower keeps a plane floor
+        // once it has one and only starts over after a long tracking loss, which the simulation cannot produce
+        // mid-round. So it is staged: the follower is switched off with its floor source set by hand, first
+        // for a flicker shorter than the grace time, then for good, and then switched on again.
+        var sourceField = typeof(FloorBasketFollower).GetField("m_FloorSource", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        yield return 1f;
+        follower.enabled = false;
+        sourceField.SetValue(follower, FloorBasketFollower.FloorSource.Assumed);
+        yield return 0.3f;
+        var afterFlicker = game.state;
+        sourceField.SetValue(follower, FloorBasketFollower.FloorSource.Plane);
+        yield return 0.3f;
+        sourceField.SetValue(follower, FloorBasketFollower.FloorSource.Assumed);
+        pauseStart = Time.time;
+        while (game.state != GameStateManager.GameState.Paused && Time.time - pauseStart < 5f)
+            yield return 0f;
+        Log($"Floor not a plane for 0.3 s: still {afterFlicker}. Not a plane for longer: {game.state} after {Time.time - pauseStart:F2} s, " +
+            $"basket shown {follower.isBasketVisible}, floor {follower.floorSource}, spawner paused {spawner.isPaused}");
+        follower.enabled = true;
+        resumeStart = Time.time;
+        while (game.state != GameStateManager.GameState.Playing && Time.time - resumeStart < 15f)
+            yield return 0f;
+        Log($"Plane floor back: {game.state} after {Time.time - resumeStart:F1} s, floor {follower.floorSource}, spawner paused {spawner.isPaused}");
 
         // Look straight down so every fruit misses, until the lives run out.
         simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
@@ -1440,6 +1491,32 @@ public static class SimTestDriver
         gotIt.onClick.Invoke();
         yield return 0.3f;
         Log($"After Got it: panel shown {panel.isShowing}, read flag {PlayerPrefs.GetInt(k_SeenHowToPlayKey, 0)}, a tap on Start reaches it {CanTap(startButton)}");
+    }
+
+    /// <summary>
+    /// V0.8 step 2: the set of point IDs that FloorBasketFollower remembers as sampled is emptied once it passes
+    /// 5,000. The simulation only has a handful of points, so the set is filled by hand, through reflection.
+    /// </summary>
+    static IEnumerator<float> PointMemory()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        yield return 2f;
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var ids = (HashSet<ulong>)typeof(FloorBasketFollower).GetField("m_SampledPointIds", flags).GetValue(follower);
+        var sample = typeof(FloorBasketFollower).GetMethod("TryGetPointFloorHeight", flags);
+        int real = ids.Count;
+        foreach (int fill in new[] { 5000 - real, 1 })
+        {
+            // IDs far above anything the simulation hands out.
+            for (int i = 0; i < fill; i++)
+                ids.Add(ulong.MaxValue - (ulong)ids.Count);
+
+            int before = ids.Count;
+            sample.Invoke(follower, new object[] { 0f });
+            Log($"{before} remembered points: {ids.Count} after the next sampling {(before > 5000 ? "(emptied, then the points in view again)" : "(kept)")}");
+        }
+
+        Log($"Floor still {follower.floorSource}, basket shown {follower.isBasketVisible}");
     }
 
     // Saves a Game view capture once play time reaches the given moment.
