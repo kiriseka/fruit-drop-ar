@@ -15,8 +15,12 @@ public class FruitSpawner : MonoBehaviour
     FloorBasketFollower m_Floor;
 
     [SerializeField]
-    [Tooltip("Fruit to drop.")]
-    FruitType m_FruitType;
+    [Tooltip("Kinds of fruit to drop. Each drop picks one at random by its spawn weight.")]
+    FruitType[] m_FruitTypes;
+
+    [SerializeField]
+    [Tooltip("How the round gets harder over time. Without it, fruit to avoid keeps the share its weight gives it.")]
+    DifficultyCurve m_Difficulty;
 
     [SerializeField]
     [Tooltip("Height of the rooftop above the floor, in meters, where fruit appears. " +
@@ -49,9 +53,11 @@ public class FruitSpawner : MonoBehaviour
 
     readonly List<Fruit> m_ActiveFruit = new List<Fruit>();
     readonly Dictionary<FruitType, Stack<Fruit>> m_Pools = new Dictionary<FruitType, Stack<Fruit>>();
+    readonly Queue<FruitType> m_ScriptedTypes = new Queue<FruitType>();
     Camera m_Camera;
     bool m_IsSpawning;
     bool m_IsPaused;
+    float m_RoundTime;
     float m_TimeUntilSpawn;
     int m_CaughtCount;
     int m_MissedCount;
@@ -75,6 +81,12 @@ public class FruitSpawner : MonoBehaviour
     /// Fruit that reached the floor since the round started.
     /// </summary>
     public int missedCount => m_MissedCount;
+
+    /// <summary>
+    /// Seconds of play since the round started. The clock stops while the round is paused,
+    /// so a pause never makes the round harder.
+    /// </summary>
+    public float roundTime => m_RoundTime;
 
     /// <summary>
     /// While true, no fruit is dropped and fruit already falling hangs in the air.
@@ -104,8 +116,19 @@ public class FruitSpawner : MonoBehaviour
         m_IsSpawning = true;
         m_CaughtCount = 0;
         m_MissedCount = 0;
+        m_RoundTime = 0f;
         m_TimeUntilSpawn = m_FirstSpawnDelay;
         isPaused = false;
+    }
+
+    /// <summary>
+    /// Lines up fruit types to drop next, in this order, ahead of the random picks. For scripted rounds such as
+    /// tests, where the outcome has to be known beforehand. Whatever is left is dropped when the round ends.
+    /// </summary>
+    public void QueueTypes(IEnumerable<FruitType> fruitTypes)
+    {
+        foreach (var fruitType in fruitTypes)
+            m_ScriptedTypes.Enqueue(fruitType);
     }
 
     /// <summary>
@@ -114,6 +137,7 @@ public class FruitSpawner : MonoBehaviour
     public void StopSpawning()
     {
         m_IsSpawning = false;
+        m_ScriptedTypes.Clear();
         foreach (var fruit in m_ActiveFruit)
         {
             fruit.gameObject.SetActive(false);
@@ -125,19 +149,83 @@ public class FruitSpawner : MonoBehaviour
 
     void Update()
     {
-        if (!m_IsSpawning || m_IsPaused || m_FruitType == null || m_Camera == null)
+        if (!m_IsSpawning || m_IsPaused || m_FruitTypes == null || m_FruitTypes.Length == 0 || m_Camera == null)
             return;
 
-        // Counting down with deltaTime rather than comparing against Time.time means a pause also stops the clock.
+        // Counting with deltaTime rather than comparing against Time.time means a pause also stops both clocks.
+        m_RoundTime += Time.deltaTime;
         m_TimeUntilSpawn -= Time.deltaTime;
         if (m_TimeUntilSpawn > 0f)
             return;
 
         m_TimeUntilSpawn += m_SpawnInterval;
-        if (TryPickLandingSpot(out var spot))
-            Spawn(m_FruitType, spot);
-        else
+        if (!TryPickLandingSpot(out var spot))
+        {
             Debug.Log("[FruitSpawner] No reachable spot on the detected floor, skipping this drop");
+            return;
+        }
+
+        var fruitType = NextType();
+        if (fruitType != null)
+            Spawn(fruitType, spot);
+    }
+
+    // A scripted type if any are lined up, otherwise a random pick with the share of fruit to avoid
+    // that the difficulty curve gives for this moment of the round.
+    FruitType NextType()
+    {
+        if (m_ScriptedTypes.Count > 0)
+            return m_ScriptedTypes.Dequeue();
+
+        float hazardShare = m_Difficulty != null ? m_Difficulty.HazardShare(m_RoundTime) : -1f;
+        return PickType(m_FruitTypes, hazardShare, UnityEngine.Random.value);
+    }
+
+    /// <summary>
+    /// Picks a fruit type by spawn weight. Fruit to avoid gets <paramref name="hazardShare"/> of the drops between
+    /// its types, and the other types split the rest by weight; a negative share leaves it all to the weights.
+    /// <paramref name="roll"/> is a random number from 0 to 1, passed in so that the pick can be tested.
+    /// </summary>
+    public static FruitType PickType(IReadOnlyList<FruitType> fruitTypes, float hazardShare, float roll)
+    {
+        float hazardWeight = 0f;
+        float otherWeight = 0f;
+        foreach (var fruitType in fruitTypes)
+        {
+            if (fruitType == null || fruitType.spawnWeight <= 0f)
+                continue;
+
+            if (fruitType.isHazard)
+                hazardWeight += fruitType.spawnWeight;
+            else
+                otherWeight += fruitType.spawnWeight;
+        }
+
+        if (hazardWeight + otherWeight <= 0f)
+            return null;
+
+        // A share only means something when both groups are there to share the drops.
+        if (hazardShare < 0f || hazardWeight <= 0f || otherWeight <= 0f)
+            hazardShare = hazardWeight / (hazardWeight + otherWeight);
+
+        hazardShare = Mathf.Clamp01(hazardShare);
+        FruitType last = null;
+        float cumulative = 0f;
+        foreach (var fruitType in fruitTypes)
+        {
+            if (fruitType == null || fruitType.spawnWeight <= 0f)
+                continue;
+
+            cumulative += fruitType.isHazard
+                ? hazardShare * fruitType.spawnWeight / hazardWeight
+                : (1f - hazardShare) * fruitType.spawnWeight / otherWeight;
+            last = fruitType;
+            if (roll < cumulative)
+                return fruitType;
+        }
+
+        // Only reached when rounding leaves the total a hair under a roll close to 1.
+        return last;
     }
 
     /// <summary>

@@ -390,6 +390,7 @@ public static class SimTestDriver
 
         yield return 2f;
         var seen = new HashSet<Fruit>();
+        var typeCounts = new SortedDictionary<string, int>();
         var camera = Camera.main.transform;
         float minDistance = float.MaxValue, maxDistance = 0f, maxAngle = 0f;
         int spawned = 0;
@@ -417,6 +418,8 @@ public static class SimTestDriver
                         continue;
 
                     spawned++;
+                    typeCounts.TryGetValue(fruit.type.displayName, out int typeCount);
+                    typeCounts[fruit.type.displayName] = typeCount + 1;
                     var spot = fruit.transform.position;
                     spot.y = follower.floorHeight;
                     var flat = spot - camera.position;
@@ -492,6 +495,11 @@ public static class SimTestDriver
         yield return 3.5f;
         Log($"Looking down for 12 s: {spawned - spawnedBefore} dropped, {spawner.caughtCount - caughtBefore} caught, {spawner.missedCount - missedBefore} missed");
         Log($"Landing spots {minDistance:F2}-{maxDistance:F2} m away, at most {maxAngle:F1} degrees off straight ahead");
+        var typeList = new List<string>();
+        foreach (var pair in typeCounts)
+            typeList.Add($"{pair.Key} {pair.Value}");
+
+        Log($"Types dropped: {string.Join(", ", typeList)}");
         Application.logMessageReceived -= countErrors;
         Log($"Errors logged during the round: {errors}");
         spawner.StopSpawning();

@@ -214,7 +214,15 @@ This file is the single source of truth for the gameplay phase. Any session that
     - `Fruit_Golden`: gold FFC21A, smoothness 0.85, a light glow. `Fruit_Rotten`: olive brown, matte. The rotten apple is also flatter and has four dark spots (`Fruit_RottenSpot`), so it differs in more than colour.
     - `FruitType` gained a `color` field, set from each material, for the V0.7 splash.
     - **Check:** a side-by-side render of the six prefabs shows each one clearly different; no colliders on any; 0 compile errors. The spawner still drops only red apples until step 2.
-- [ ] 2. **Weighted random pick**, with the rising rotten share.
+- [x] 2. **Weighted random pick**, with the rising rotten share.
+  - **Done.** `FruitSpawner` now holds a list of types. `FruitSpawner.PickType(types, hazardShare, roll)` is a static function with the random number passed in, so it can be checked without Play mode: fruit to avoid gets its share first and the other types split the rest by weight.
+  - New `DifficultyCurve` ScriptableObject (`Assets/Data/DifficultyCurve.asset`), for now with the rotten share only: 2 % rising to 10 % by 120 s. The spawner keeps a round clock that stops while paused.
+  - `FruitSpawner.QueueTypes` lines up types ahead of the random picks, for scripted rounds whose score has to be known beforehand (step 5).
+  - **Edit-mode check** (seed 2026), shares in % for red / green / orange / lemon / golden / rotten:
+    - t = 0, expected 40 / 25 / 20 / 10 / 3 / 2: 1,000 picks gave 39.9 / 24.6 / 18.9 / 11.0 / 3.6 / 2.0; 100,000 picks gave 39.8 / 25.2 / 19.9 / 10.0 / 3.1 / 2.0
+    - t = 120 s, expected 36.7 / 23.0 / 18.4 / 9.2 / 2.8 / 10: 1,000 picks gave 36.7 / 22.7 / 17.6 / 8.8 / 3.4 / 10.8; 100,000 picks gave 36.5 / 23.3 / 18.3 / 9.0 / 2.8 / 10.1
+    - the share stays 10 % after 120 s; a roll of 0 and a roll just under 1 both return a type; an empty list returns nothing
+  - **Sim scenario `play`:** 20 s aimed: 10 dropped, 9 caught, 0 missed; looking down: 2 dropped, 2 missed; spots 0.88–1.67 m away, at most 15.0° off; 5 of the 6 types appeared in 12 drops; 0 errors. The capture shows a rotten apple falling beside the basket.
 - [ ] 3. **`DifficultyCurve`:**
   - interval(t) = max(0.7, 2.0 − 0.015t)
   - speed(t) = min(1.6, 1 + 0.008t)
