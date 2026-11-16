@@ -6482,6 +6482,7 @@ GameObject:
   - component: {fileID: 1266816049}
   - component: {fileID: 1266816051}
   - component: {fileID: 1266816050}
+  - component: {fileID: 1266816052}
   m_Layer: 0
   m_Name: Safe Area
   m_TagString: Untagged
@@ -6551,6 +6552,31 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6433694a25f9514ba3455d99313e0d0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SafeAreaFitter
+--- !u!114 &1266816052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1266816048}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1e9c0cd905ce264bb694e47185fcf1c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HowToPlayPanel
+  m_Instructions: '1. Point the phone at the floor. The basket follows the middle of the screen.
+
+
+    2. Move the basket under the falling fruit. The ring on the floor shows where each one will land.
+
+
+    3. A red ring means a rotten apple: let it fall.
+
+
+    4. Three misses end the round.'
+  m_SafetyNote: Make sure the space around you is clear, and keep an eye on your surroundings while you play.
+  m_CardColor: {r: 0.122, g: 0.227, b: 0.18, a: 0.96}
+  m_AccentColor: {r: 0.957, g: 0.769, b: 0.188, a: 1}
 --- !u!1 &1309057132
 GameObject:
   m_ObjectHideFlags: 0

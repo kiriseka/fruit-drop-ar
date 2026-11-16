@@ -23,9 +23,10 @@ public static class SimTestDriver
     const string k_QueueKey = "SimTestDriver.Queue";
     const string k_QueueEnd = "#end";
     const string k_BestScoreKey = "FruitDropAR.HighScore";
+    const string k_SeenHowToPlayKey = "FruitDropAR.SeenHowToPlay";
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -88,6 +89,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/variety")] static void MenuVariety() => RunQueue("variety");
     [MenuItem("Fruit Drop/Sim/long-round")] static void MenuLongRound() => RunQueue("long-round");
     [MenuItem("Fruit Drop/Sim/feedback")] static void MenuFeedback() => RunQueue("feedback");
+    [MenuItem("Fruit Drop/Sim/onboarding, then again")] static void MenuOnboarding() => RunQueue("onboarding,onboarding-again");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -154,6 +156,13 @@ public static class SimTestDriver
         else if (scenario == "score-round")
             PlayerPrefs.SetInt(k_BestScoreKey, 40);
 
+        // The first-run panel covers the Start button, so it is marked as read for every scenario but the one
+        // that tests it. onboarding-again runs right after onboarding and finds what that one left.
+        if (scenario == "onboarding")
+            PlayerPrefs.DeleteKey(k_SeenHowToPlayKey);
+        else if (scenario != "onboarding-again")
+            PlayerPrefs.SetInt(k_SeenHowToPlayKey, 1);
+
         PlayerPrefs.Save();
         EditorApplication.EnterPlaymode();
     }
@@ -206,6 +215,8 @@ public static class SimTestDriver
             "long-round" => LongRound(),
             "variety" => Variety(),
             "feedback" => Feedback(),
+            "onboarding" => Onboarding(true),
+            "onboarding-again" => Onboarding(false),
             _ => null,
         };
 
@@ -1383,6 +1394,52 @@ public static class SimTestDriver
         string gotEffects = string.Join(", ", effectList);
         Log($"Effects: {gotEffects}: {(gotEffects == expectedEffects ? "as planned" : "FAIL: planned " + expectedEffects)}");
         Log($"Basket squashed to {lowestScale:F3} of its height at most; at the end it is {(basketBody != null ? basketBody.localScale.ToString("F3") : "not there")}");
+    }
+
+    /// <summary>
+    /// V0.7 step 4: on a first run the "How to play" panel is up and keeps taps from the Start button until
+    /// "Got it" is tapped; in the next Play mode session it does not come back.
+    /// </summary>
+    static IEnumerator<float> Onboarding(bool firstRun)
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var panel = Object.FindAnyObjectByType<HowToPlayPanel>();
+        if (panel == null)
+        {
+            Log("FAIL: no HowToPlayPanel in the scene");
+            yield break;
+        }
+
+        yield return 1f;
+        if (!firstRun)
+        {
+            Log($"Next session: panel shown {panel.isShowing}, read flag {PlayerPrefs.GetInt(k_SeenHowToPlayKey, 0)}");
+            yield break;
+        }
+
+        Log($"First run: panel shown {panel.isShowing}, read flag {PlayerPrefs.GetInt(k_SeenHowToPlayKey, 0)}");
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        float readyWait = Time.time;
+        while (game.state != GameStateManager.GameState.Ready && Time.time - readyWait < 10f)
+            yield return 0.25f;
+
+        var startButton = FindButton("Start Button");
+        var gotIt = FindButton("Got It Button");
+        Log($"With the panel up: game {game.state}, a tap on Start reaches it {CanTap(startButton)}, a tap on Got it reaches it {CanTap(gotIt)}");
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-onboarding.png"));
+        yield return 0.5f;
+
+        gotIt.onClick.Invoke();
+        yield return 0.3f;
+        Log($"After Got it: panel shown {panel.isShowing}, read flag {PlayerPrefs.GetInt(k_SeenHowToPlayKey, 0)}, a tap on Start reaches it {CanTap(startButton)}");
     }
 
     // Saves a Game view capture once play time reaches the given moment.

@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.7 step 4 (onboarding), then step 5.
+- **Next step:** V0.7 step 5 (full sim test, then version end).
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
   - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
@@ -308,7 +308,14 @@ This file is the single source of truth for the gameplay phase. Any session that
     - The formula in the file now keeps the V0.3 falloff and adds to it: about 0.85 in the middle, 0.76 at 0.55, a contact ring of about 0.87 just outside the base, and from 0.7 outward the same as V0.3. These constants have not been compiled or run yet.
   - **Done.** The corrected formula was run: `BasketShadow.png` is now 256 px (was 128), with darkness 0.85 in the middle, 0.76 at 0.55, 0.86 on the contact ring just outside the base, then 0.53 at 0.7, 0.29 at 0.8 and 0.09 at 0.9 (V0.3: 0.53, 0.32, 0.12). Same file and material, so nothing was rewired.
     - **Check:** in the `marker` capture the basket has a darker edge where its base meets the floor, inside the same soft shadow as before. `floor-edge` reads floor y 0.005 as before. The ring is subtle on the grey sim floor; whether it is right on a real floor is for the phone test, and it is three numbers in `ShadowGenerator.Darkness`.
-- [ ] 4. **Onboarding:** a first-run "how to play" screen and a clear-space safety reminder.
+- [x] 4. **Onboarding:** a first-run "how to play" screen and a clear-space safety reminder.
+  - **Done.** `HowToPlayPanel.cs` on the `Safe Area` object builds the panel in code on a first run: a dim layer over the HUD, a forest card with "How to play", four numbered steps, the safety reminder in lemon, and a lemon "Got it" button. It is sized with anchors and its text shrinks to fit, so it suits any screen shape. PlayerPrefs key `FruitDropAR.SeenHowToPlay` remembers that it was read.
+  - **Sim scenarios `onboarding` and `onboarding-again`:**
+    - first run: panel shown, read flag 0; with the game Ready, a tap on Start does not reach it and a tap on "Got it" does
+    - after "Got it": panel gone, read flag 1, a tap on Start reaches it
+    - next Play mode session: panel not shown, read flag 1
+    - the capture shows the whole panel readable in the editor's wide view; the portrait layout on the phone is for the phone test
+  - The driver marks the panel as read before every other scenario, as planned in the design notes.
   - **Design notes:**
     - A panel under `Safe Area`, shown until "Got it" is tapped, remembered with a PlayerPrefs flag. It covers the Start button.
     - The sim scenarios press buttons through `onClick`, which a covering panel does not stop, but `CanTap` checks would fail. Have the driver set the flag before every scenario except the one that tests the panel, the way it sets the best score in `NextInQueue`.
