@@ -257,10 +257,23 @@ This file is the single source of truth for the gameplay phase. Any session that
     - 0.597 m across two frames after the start, 0.300 m just before landing, hidden after landing
     - the capture shows the red and the yellow ring side by side
   - **Sim runs are now started from the menu:** `Fruit Drop > Sim > <scenario>` or `All` (`SimTestDriver.RunQueue`). It compiles changed scripts, plays each scenario in its own Play mode session, and ends `Temp/SimTest.log` with "All done". This replaces setting SessionState through Unity_RunCommand.
-- [ ] 5. **Sim test:**
+- [x] 5. **Sim test:**
   - the curve at t = 0, 30, 60, 90 and 120 s
   - 1,000 picks within ±2 % of the shares
   - a scripted 3-minute round gets harder
+  - **Done.** The whole regression (`Fruit Drop > Sim > All`, 14 scenarios, each in its own Play mode session) ran to the end with 0 errors, at 70–150 frames a second.
+    - `curve` and `long-round`: as in step 3. The second three-minute round had 0 / 0 / 1 / 4 / 3 / 3 misses in its six parts, 30 doubles (closest pair 0.52 m, shortest landing gap 0.70 s) and 5 skipped drops. Doubles came out at 16 % and 24 % of the drops in the two runs: a double is dropped only when a second spot at least 0.5 m away is free on the scanned floor.
+    - `picks` (seed 2026): 1,000 picks are within 1.1 points of the table at t = 0 and within 0.8 at t = 120 s; 100,000 picks within 0.3.
+    - `variety`: the capture shows all six types in a row over their rings, five yellow and the rotten apple's red.
+    - `score-round`, now with planned fruit types (best set to 40 first): red, red, golden, red, rotten (let fall), red, rotten (caught), red (missed), green, orange, lemon, red (missed). Planned `CCCCMCCMCCCM`, got `CCCCMCCMCCCM`; score 205, matching the total worked by hand (the list is in the scenario's comment); Game Over with 0 lives; "New best!", best 40 → 205; Restart resets score, streak, lives and HUD.
+    - `best` in a new Play mode: best 205 loaded; plan `CMMM` played as planned; Game Over on 10 with "Best 205".
+    - `hud` (red apples only, best cleared first): 7 caught for 90 = 5×10 + 2×20; hearts dim on each miss; "New best!" 0 → 90; taps reach Start and Play again; Restart leads to the countdown.
+    - V0.4 and V0.5 scenarios `floor-edge`, `drop`, `marker`, `spawner`, `play`, `states` and `flow` behave as before: floor y 0.004–0.006, a caught fruit after 3.03 s, a miss 0.055 m above the floor, a paused fruit moving 0.0000 m.
+  - **Fixes found on the way:**
+    - `GameStateManager.Restart` checked the floor once. Landing spots are random, so on a small floor one unlucky check sent the player back to "Tap Start" instead of the countdown. It now tries as often as the Ready state does (4 times).
+    - Unity does not run `EditorApplication.delayCall` while the editor is in the background, so a chain of scenarios stalled after the first one whenever another window was in front. The driver and the build menu item now hand over on `EditorApplication.update`. Asking to enter Play mode while an exit was still pending also cancelled the exit; the driver now checks `isPlaying` too.
+    - Scenarios that start the spawner without a round (`spawner`, `long-round`) switch the ScoreManager off, because it scored every fruit and left the editor with a best score of 11,375. The driver sets the saved best before `hud` (none) and `score-round` (40).
+    - Each scenario's "Done" line now shows play time, real time and frames a second, so a held-back editor is visible in the log.
 - [ ] 6. **Version end:** V0.6.
 
 ## V0.7 Feedback and polish

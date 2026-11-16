@@ -189,7 +189,13 @@ public class GameStateManager : MonoBehaviour
         if (m_State != GameState.GameOver)
             return;
 
-        if (CanStart())
+        // Landing spots are picked at random, so one failed check on a small floor does not mean the floor
+        // has gone. Try as often as the Ready state would before it falls back to scanning.
+        bool canStart = false;
+        for (int i = 0; i < m_FailedChecksToRescan && !canStart; i++)
+            canStart = CanStart();
+
+        if (canStart)
         {
             BeginCountdown();
         }

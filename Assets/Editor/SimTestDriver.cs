@@ -22,6 +22,7 @@ public static class SimTestDriver
     const string k_PendingKey = "SimTestDriver.Pending";
     const string k_QueueKey = "SimTestDriver.Queue";
     const string k_QueueEnd = "#end";
+    const string k_BestScoreKey = "FruitDropAR.HighScore";
 
     // Every scenario, in the order the regression run plays them.
     const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,long-round";
@@ -39,7 +40,7 @@ public static class SimTestDriver
             if (state == PlayModeStateChange.EnteredEditMode)
             {
                 // Not from inside the callback: Play mode cannot be entered again while it is still being left.
-                EditorApplication.delayCall += NextInQueue;
+                OnNextUpdate(NextInQueue);
                 return;
             }
 
@@ -57,7 +58,20 @@ public static class SimTestDriver
         };
 
         // A queue that had to wait for changed scripts to compile starts here, after the reload.
-        EditorApplication.delayCall += NextInQueue;
+        OnNextUpdate(NextInQueue);
+    }
+
+    // EditorApplication.delayCall is not run while the editor is in the background, and a test run has to
+    // carry on there. EditorApplication.update keeps being called, so that is used instead.
+    static void OnNextUpdate(Action action)
+    {
+        EditorApplication.CallbackFunction once = null;
+        once = () =>
+        {
+            EditorApplication.update -= once;
+            action();
+        };
+        EditorApplication.update += once;
     }
 
     [MenuItem("Fruit Drop/Sim/All")] static void MenuAll() => RunQueue(k_AllScenarios);
@@ -74,6 +88,9 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/variety")] static void MenuVariety() => RunQueue("variety");
     [MenuItem("Fruit Drop/Sim/long-round")] static void MenuLongRound() => RunQueue("long-round");
 
+    // Any other selection: the comma-separated list in Temp/SimTest.queue.
+    [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
+
     /// <summary>
     /// Runs scenarios one after another, each in its own Play mode session, so every one starts from a fresh
     /// scan. <paramref name="scenarios"/> is a comma-separated list. Changed scripts are compiled first.
@@ -87,6 +104,7 @@ public static class SimTestDriver
         }
 
         File.WriteAllText(k_LogPath, "");
+        SessionState.EraseString(k_PendingKey);
         SessionState.SetString(k_QueueKey, scenarios);
         AssetDatabase.Refresh();
 
@@ -110,8 +128,10 @@ public static class SimTestDriver
 
     static void NextInQueue()
     {
+        // isPlaying is checked as well, because isPlayingOrWillChangePlaymode is already false once leaving Play
+        // mode has been asked for. Asking to enter at that moment cancels the exit and the run would hang.
         string queue = SessionState.GetString(k_QueueKey, "");
-        if (queue == "" || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)
+        if (queue == "" || EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)
             return;
 
         if (queue == k_QueueEnd || EditorUtility.scriptCompilationFailed)
@@ -122,8 +142,18 @@ public static class SimTestDriver
         }
 
         int comma = queue.IndexOf(',');
+        string scenario = comma < 0 ? queue : queue.Substring(0, comma);
         SessionState.SetString(k_QueueKey, comma < 0 ? k_QueueEnd : queue.Substring(comma + 1));
-        SessionState.SetString(k_PendingKey, comma < 0 ? queue : queue.Substring(0, comma));
+        SessionState.SetString(k_PendingKey, scenario);
+
+        // The game reads the saved best score as Play mode starts, so the scenarios that check the best-score
+        // line get a known one here: none for hud, 40 for score-round. best then finds what score-round left.
+        if (scenario == "hud")
+            PlayerPrefs.DeleteKey(k_BestScoreKey);
+        else if (scenario == "score-round")
+            PlayerPrefs.SetInt(k_BestScoreKey, 40);
+
+        PlayerPrefs.Save();
         EditorApplication.EnterPlaymode();
     }
 
@@ -214,7 +244,8 @@ public static class SimTestDriver
 
         if (!running)
         {
-            Log("Done");
+            // The frame rate shows whether the editor was held back, which makes the timings unreliable.
+            Log($"Done: {Time.time:F0} s of play in {Time.realtimeSinceStartup:F0} s, {Time.frameCount / Mathf.Max(1f, Time.realtimeSinceStartup):F0} frames a second");
             Stop();
             return;
         }
@@ -604,12 +635,10 @@ public static class SimTestDriver
             float end = Time.time + seconds;
             while (Time.time < end)
             {
-                Fruit nextToLand = null;
+                // Rotten fruit is left alone, as a player would.
+                var nextToLand = NextToLand(spawner, follower, true);
                 foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
                 {
-                    if (nextToLand == null || fruit.transform.position.y < nextToLand.transform.position.y)
-                        nextToLand = fruit;
-
                     if (!seen.Add(fruit))
                         continue;
 
@@ -672,6 +701,7 @@ public static class SimTestDriver
         }
         else
         {
+            StopScoring();
             spawner.StartSpawning();
         }
 
@@ -948,6 +978,9 @@ public static class SimTestDriver
         var restartButton = FindButton("Restart Button");
         Log($"Ready: a tap on Start reaches it {CanTap(startButton)}, round bar shown {FindActive("Round Bar")}");
         int bestBefore = score.highScore;
+
+        // Red apples only, so the score can be worked out by hand from the number of catches.
+        spawner.QueueTypes(Repeat("RedApple", 60));
         startButton.onClick.Invoke();
         yield return 0.5f;
         ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-hud-countdown.png"));
@@ -963,13 +996,7 @@ public static class SimTestDriver
         float aimEnd = Time.time + 16f;
         while (Time.time < aimEnd)
         {
-            Fruit nextToLand = null;
-            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
-            {
-                if (nextToLand == null || fruit.transform.position.y < nextToLand.transform.position.y)
-                    nextToLand = fruit;
-            }
-
+            var nextToLand = NextToLand(spawner, follower, false);
             if (nextToLand != null)
             {
                 var spot = nextToLand.transform.position;
@@ -1065,13 +1092,7 @@ public static class SimTestDriver
         float start = Time.time;
         while (outcomes.Length < plan.Length && game.state != GameStateManager.GameState.GameOver && Time.time - start < 60f)
         {
-            Fruit nextToLand = null;
-            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
-            {
-                if (nextToLand == null || fruit.transform.position.y < nextToLand.transform.position.y)
-                    nextToLand = fruit;
-            }
-
+            var nextToLand = NextToLand(spawner, follower, false);
             if (nextToLand != null && plan[outcomes.Length] == 'C')
             {
                 var spot = nextToLand.transform.position;
@@ -1090,21 +1111,80 @@ public static class SimTestDriver
     }
 
     /// <summary>
-    /// V0.5 step 4: a scripted round of planned catches and misses. The score must match the hand-worked total,
-    /// the third miss must end the round, and Restart must reset everything but the best score.
-    /// Plan CCCCCC M CC M C M, with a best score of 40 set beforehand:
-    /// catches 1-5 at ×1 = 50, catch 6 at ×2 = 70, miss (2 lives), two catches at ×1 = 90, miss (1 life),
-    /// one catch = 100, miss = Game Over on 100, a new best.
+    /// The falling fruit that reaches the floor first, going by height and speed, or null when none is falling.
+    /// </summary>
+    static Fruit NextToLand(FruitSpawner spawner, FloorBasketFollower follower, bool skipRotten)
+    {
+        Fruit next = null;
+        float nextSeconds = float.MaxValue;
+        foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+        {
+            if (skipRotten && fruit.type.isHazard)
+                continue;
+
+            float seconds = (fruit.transform.position.y - follower.floorHeight) / Mathf.Max(0.01f, fruit.speed);
+            if (seconds < nextSeconds)
+            {
+                nextSeconds = seconds;
+                next = fruit;
+            }
+        }
+
+        return next;
+    }
+
+    // For scenarios that start the spawner without a round. The score would still count every fruit, and a
+    // long run would leave the editor with a best score no real round could reach.
+    static void StopScoring()
+    {
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        if (score != null)
+            score.enabled = false;
+    }
+
+    static FruitType LoadType(string name) => AssetDatabase.LoadAssetAtPath<FruitType>($"Assets/Data/{name}.asset");
+
+    static IEnumerable<FruitType> Repeat(string name, int count)
+    {
+        var fruitType = LoadType(name);
+        for (int i = 0; i < count; i++)
+            yield return fruitType;
+    }
+
+    /// <summary>
+    /// V0.5 step 4 and V0.6 step 5: a scripted round of planned fruit, catches and misses. The score must match
+    /// the total worked by hand, the third lost life must end the round, and Restart must reset everything but
+    /// the best score. The fruit is lined up in this order, with what the camera does about each:
+    /// <code>
+    ///  1 red     catch  10          streak 1
+    ///  2 red     catch  20          streak 2
+    ///  3 golden  catch  120         streak 5 (golden adds 2 more), so the next catch scores x2
+    ///  4 red     catch  140  (x2)   streak 6
+    ///  5 rotten  let fall: nothing changes
+    ///  6 red     catch  160  (x2)   streak 7
+    ///  7 rotten  catch  140  (-20)  streak 0, 2 lives
+    ///  8 red     miss               1 life
+    ///  9 green   catch  155         streak 1
+    /// 10 orange  catch  175         streak 2
+    /// 11 lemon   catch  205         streak 3
+    /// 12 red     miss               0 lives: Game Over on 205
+    /// </code>
     /// </summary>
     static IEnumerator<float> ScoreRound()
     {
-        const string plan = "CCCCCCMCCMCM";
-        const int expected = 100;
+        const string plan = "CCCCMCCMCCCM";
+        const int expected = 205;
+        string[] order = { "RedApple", "RedApple", "GoldenApple", "RedApple", "RottenApple", "RedApple", "RottenApple", "RedApple", "GreenApple", "Orange", "Lemon", "RedApple" };
         var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
         var game = Object.FindAnyObjectByType<GameStateManager>();
         var spawner = Object.FindAnyObjectByType<FruitSpawner>();
         var score = Object.FindAnyObjectByType<ScoreManager>();
         Log($"Best score at start: {score.highScore}");
+        var planned = new List<FruitType>();
+        foreach (string name in order)
+            planned.Add(LoadType(name));
+
+        spawner.QueueTypes(planned);
 
         var start = ScanAndStart(follower, game);
         while (start.MoveNext())
@@ -1146,6 +1226,7 @@ public static class SimTestDriver
         var spawner = Object.FindAnyObjectByType<FruitSpawner>();
         var score = Object.FindAnyObjectByType<ScoreManager>();
         Log($"Fresh Play mode: best {score.highScore}, saved {PlayerPrefs.GetInt("FruitDropAR.HighScore", -1)}");
+        spawner.QueueTypes(Repeat("RedApple", 8));
 
         var start = ScanAndStart(follower, game);
         while (start.MoveNext())
@@ -1317,6 +1398,7 @@ public static class SimTestDriver
         spawner.fruitSpawned += Spawned;
         spawner.fruitLanded += Landed;
         Application.logMessageReceived += watchLog;
+        StopScoring();
         spawner.StartSpawning();
         bool captured = false;
         while (spawner.roundTime < duration)

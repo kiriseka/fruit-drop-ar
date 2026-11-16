@@ -42,8 +42,11 @@ public static class BuildTools
         Debug.Log($"[BuildTools] Building {path}");
 
         // Started after the menu call returns, so whatever ran the menu item is not held for the whole build.
-        EditorApplication.delayCall += () =>
+        // On the next update rather than with delayCall, which is not run while the editor is in the background.
+        EditorApplication.CallbackFunction build = null;
+        build = () =>
         {
+            EditorApplication.update -= build;
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = scenes.ToArray(),
@@ -60,5 +63,6 @@ public static class BuildTools
             File.AppendAllText(k_LogPath, line + "\n");
             Debug.Log($"[BuildTools] {line}");
         };
+        EditorApplication.update += build;
     }
 }
