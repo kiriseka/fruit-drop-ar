@@ -6,10 +6,11 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.7 step 1 (sounds).
+- **Next step:** V0.7 step 2 (effects).
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
   - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
+  - Listen to the five V0.7 sounds (WAVs in `Assets/Audio/`, or in the next build) and say if any should change. They were tested by event only, not by ear.
 - **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
 
 ## Working rules
@@ -279,7 +280,11 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 ## V0.7 Feedback and polish
 
-- [ ] 1. **Sounds**, generated as WAV by an editor script: catch pop, miss thud, 3D spawn cue, rotten buzz, game-over jingle.
+- [x] 1. **Sounds**, generated as WAV by an editor script: catch pop, miss thud, 3D spawn cue, rotten buzz, game-over jingle.
+  - **Done.** `Assets/Editor/SoundGenerator.cs` (menu **Fruit Drop > Generate Sounds**) makes the five sounds from formulas and writes 16-bit mono WAVs to `Assets/Audio/`: `SpawnCue` 0.16 s, `CatchPop` 0.12 s, `MissThud` 0.28 s, `RottenBuzz` 0.32 s, `GameOver` 1.10 s (three notes going down). Running it again keeps the file names, so nothing has to be wired again.
+  - `GameAudio.cs` on the `Game` object listens to `FruitSpawner.fruitSpawned`, `fruitLanded` and `GameStateManager.stateChanged`. The cue is 3D, placed where the fruit appears, from a pool of 4 sources at half volume; the other sounds are 2D. Rotten fruit left to fall makes no sound. The jingle starts 0.4 s after the last miss, so it does not cover the thud. The Main Camera already had the AudioListener.
+  - **Sim scenario `feedback`:** planned red (catch), red (miss), rotten (catch), rotten (let fall), red (miss); got `CMCMM` and Game Over. Sounds in order: CatchPop, MissThud, RottenBuzz, MissThud, GameOver, as planned. 6 cues for 6 fruits, each 0.000 m from where its fruit appeared. 0 errors.
+  - **Not checked:** how the sounds actually sound. They were tested by event, not by ear. Listening to them (on the phone, or the WAVs in `Assets/Audio/`) is under "Waiting on user"; each is one formula in `SoundGenerator.cs` if one needs changing.
 - [ ] 2. **Effects:**
   - catch sparkle, and a miss splash in the fruit's colour
   - basket bounce on catch

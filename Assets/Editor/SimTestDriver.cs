@@ -25,7 +25,7 @@ public static class SimTestDriver
     const string k_BestScoreKey = "FruitDropAR.HighScore";
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -87,6 +87,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/curve, then picks")] static void MenuCurve() => RunQueue("curve,picks");
     [MenuItem("Fruit Drop/Sim/variety")] static void MenuVariety() => RunQueue("variety");
     [MenuItem("Fruit Drop/Sim/long-round")] static void MenuLongRound() => RunQueue("long-round");
+    [MenuItem("Fruit Drop/Sim/feedback")] static void MenuFeedback() => RunQueue("feedback");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -204,6 +205,7 @@ public static class SimTestDriver
             "picks" => Picks(),
             "long-round" => LongRound(),
             "variety" => Variety(),
+            "feedback" => Feedback(),
             _ => null,
         };
 
@@ -1244,6 +1246,86 @@ public static class SimTestDriver
         yield return 0.3f;
         Log($"Planned {plan}, got {outcomes}; {game.state}, score {score.score} (worked by hand 10), best {score.highScore}, " +
             $"panel final \"{HudText("Final Score Text")}\", best line \"{HudText("Best Text")}\"");
+    }
+
+    /// <summary>
+    /// V0.7: the right feedback for each event of a short planned round. A red apple is caught (pop), a red
+    /// apple missed (thud), a rotten apple caught (buzz), a rotten apple left to fall (nothing), and a last red
+    /// apple missed (thud), which ends the round (jingle). Every fruit gets a cue where it appears.
+    /// </summary>
+    static IEnumerator<float> Feedback()
+    {
+        const string plan = "CMCMM";
+        const string expectedSounds = "CatchPop, MissThud, RottenBuzz, MissThud, GameOver";
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var audio = Object.FindAnyObjectByType<GameAudio>();
+        if (audio == null)
+        {
+            Log("FAIL: no GameAudio in the scene");
+            yield break;
+        }
+
+        var listeners = Object.FindObjectsByType<AudioListener>();
+        Log($"Audio listeners: {listeners.Length}{(listeners.Length > 0 ? " (" + listeners[0].name + ")" : "")}");
+        var sounds = new List<string>();
+        int cues = 0, fruits = 0;
+        float furthestCue = 0f;
+        void Played(AudioClip clip)
+        {
+            if (clip.name == "SpawnCue")
+                cues++;
+            else
+                sounds.Add(clip.name);
+        }
+
+        // GameAudio hears about a new fruit first, so by now a placed source should be playing where it is.
+        void Spawned(Fruit fruit)
+        {
+            fruits++;
+            float nearest = float.MaxValue;
+            foreach (var source in audio.GetComponentsInChildren<AudioSource>())
+            {
+                if (source.spatialBlend > 0.5f && source.isPlaying)
+                    nearest = Mathf.Min(nearest, Vector3.Distance(source.transform.position, fruit.transform.position));
+            }
+
+            furthestCue = Mathf.Max(furthestCue, nearest);
+        }
+
+        audio.played += Played;
+        spawner.fruitSpawned += Spawned;
+        spawner.QueueTypes(new[] { LoadType("RedApple"), LoadType("RedApple"), LoadType("RottenApple"), LoadType("RottenApple"), LoadType("RedApple") });
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        if (game.state != GameStateManager.GameState.Playing)
+            yield break;
+
+        var outcomes = new System.Text.StringBuilder();
+        var play = PlayPlan(plan, follower, spawner, game, outcomes);
+        while (play.MoveNext())
+            yield return play.Current;
+
+        // Long enough for the Game Over jingle, which waits a moment after the last miss.
+        yield return 1.5f;
+        audio.played -= Played;
+        spawner.fruitSpawned -= Spawned;
+        string got = string.Join(", ", sounds);
+        Log($"Planned {plan} (red, red, rotten, rotten, red), got {outcomes}; {game.state}");
+        Log($"Sounds: {got}: {(got == expectedSounds ? "as planned" : "FAIL: planned " + expectedSounds)}");
+        Log($"Cues: {cues} for {fruits} fruits, each within {furthestCue:F3} m of where its fruit appeared");
+        var clips = new List<string>();
+        var serialized = new SerializedObject(audio);
+        foreach (string field in new[] { "m_SpawnClip", "m_CatchClip", "m_MissClip", "m_HazardClip", "m_GameOverClip" })
+        {
+            var clip = serialized.FindProperty(field).objectReferenceValue as AudioClip;
+            clips.Add(clip != null ? $"{clip.name} {clip.length:F2} s" : $"FAIL: {field} not set");
+        }
+
+        Log($"Clips: {string.Join(", ", clips)}");
     }
 
     const string k_CurvePath = "Assets/Data/DifficultyCurve.asset";
