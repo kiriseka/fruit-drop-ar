@@ -6,10 +6,10 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.6 step 1 (FruitType assets for all six types).
+- **Next step:** V0.7 step 1 (sounds).
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
-  - Phone test of V0.5 (`Builds/V0.5.apk`, also on the v0.5 GitHub pre-release) on the Realme 7, with the checklist in the release notes. Not tested yet. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3), so V0.5 replaces the V0.4 phone test.
+  - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
 - **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
 
 ## Working rules
@@ -274,7 +274,8 @@ This file is the single source of truth for the gameplay phase. Any session that
     - Unity does not run `EditorApplication.delayCall` while the editor is in the background, so a chain of scenarios stalled after the first one whenever another window was in front. The driver and the build menu item now hand over on `EditorApplication.update`. Asking to enter Play mode while an exit was still pending also cancelled the exit; the driver now checks `isPlaying` too.
     - Scenarios that start the spawner without a round (`spawner`, `long-round`) switch the ScoreManager off, because it scored every fruit and left the editor with a best score of 11,375. The driver sets the saved best before `hud` (none) and `score-round` (40).
     - Each scenario's "Done" line now shows play time, real time and frames a second, so a held-back editor is visible in the log.
-- [ ] 6. **Version end:** V0.6.
+- [x] 6. **Version end:** V0.6.
+  - **Done.** `Builds/V0.6.apk`, 35.9 MB: 0 errors, 351 warnings (package shader notes, as before). The IL2CPP build took 4.3 min. `gameplay` pushed, tagged `v0.6`, and published as a GitHub pre-release with the notes and phone checklist from `Builds/V0.6-release-notes.md` (not in git).
 
 ## V0.7 Feedback and polish
 
