@@ -223,11 +223,30 @@ This file is the single source of truth for the gameplay phase. Any session that
     - t = 120 s, expected 36.7 / 23.0 / 18.4 / 9.2 / 2.8 / 10: 1,000 picks gave 36.7 / 22.7 / 17.6 / 8.8 / 3.4 / 10.8; 100,000 picks gave 36.5 / 23.3 / 18.3 / 9.0 / 2.8 / 10.1
     - the share stays 10 % after 120 s; a roll of 0 and a roll just under 1 both return a type; an empty list returns nothing
   - **Sim scenario `play`:** 20 s aimed: 10 dropped, 9 caught, 0 missed; looking down: 2 dropped, 2 missed; spots 0.88–1.67 m away, at most 15.0° off; 5 of the 6 types appeared in 12 drops; 0 errors. The capture shows a rotten apple falling beside the basket.
-- [ ] 3. **`DifficultyCurve`:**
+- [x] 3. **`DifficultyCurve`:**
   - interval(t) = max(0.7, 2.0 − 0.015t)
   - speed(t) = min(1.6, 1 + 0.008t)
   - spawn angle from ±20° to half the horizontal FOV over 60 s
   - after 30 s, a 25 % chance of a double drop, with spots at least 0.5 m apart
+  - **Done.** `DifficultyCurve` now holds all five functions of round time; the spawner reads the gap, spread, speed factor and double-drop chance from it at every drop. `Fruit.speed` and the `FruitSpawner.fruitSpawned` event are new.
+  - The spread widens to half the horizontal field of view, read from the camera's projection matrix: on a phone AR sets that matrix from the real camera and leaves `Camera.fieldOfView` alone. On a phone that sees less than 20° to each side the spread stays at 20°.
+  - **Added for fairness:** the second fruit of a double starts high enough to reach the floor 0.7 s after the first (never below the rooftop). Two fruits 0.5 m apart that land together cannot both be caught.
+  - **Sim scenario `curve`:** at t = 0 / 30 / 60 / 90 / 120 s the gap is 2.00 / 1.55 / 1.10 / 0.70 / 0.70 s, the speed factor 1.00 / 1.24 / 1.48 / 1.60 / 1.60, the spread 20 / 25 / 30 / 30 / 30° (for a view of 30° to each side), the rotten share 2 / 4 / 6 / 8 / 10 %, and the double chance 0 / 25 / 25 / 25 / 25 %. All as worked by hand.
+  - **Sim scenario `long-round`:** three minutes through the spawner alone (no lives), the camera going to the fruit that lands next and leaving rotten fruit alone. The editor's Game view sees 52.7° to each side.
+
+    | Part of the round | Drops (doubles) | Gap, measured (curve) | Speed factor | Widest spot (limit) | Caught | Missed |
+    |---|---|---|---|---|---|---|
+    | 0–30 s | 17 (0) | 1.77 s (1.77) | 1.12 | 29.1° (36.3°) | 15 | 0 |
+    | 30–60 s | 22 (4) | 1.37 s (1.30) | 1.37 | 42.6° (52.7°) | 24 | 0 |
+    | 60–90 s | 31 (9) | 0.94 s (0.85) | 1.58 | 51.6° (52.7°) | 35 | 0 |
+    | 90–120 s | 40 (5) | 0.75 s (0.70) | 1.60 | 51.8° (52.7°) | 41 | 1 |
+    | 120–150 s | 41 (12) | 0.73 s (0.70) | 1.60 | 51.9° (52.7°) | 46 | 2 |
+    | 150–180 s | 43 (12) | 0.70 s (0.70) | 1.60 | 49.5° (52.7°) | 48 | 5 |
+
+    - Every fruit's speed factor was exactly on the curve and no spot was past the spread limit.
+    - 42 doubles in 177 drops after 30 s (24 %); closest pair 0.52 m apart; shortest time between the two landings 0.70 s.
+    - 9 drops were skipped for lack of floor at the wider angles, which is why some measured gaps are longer than the curve.
+    - No rotten fruit was caught; 0 errors. The misses appear only late, so the round does get harder, even for a camera that aims perfectly.
 - [ ] 4. **LandingMarker upgrade:** shrinks from 0.3 m to basket size as the fruit falls; red for rotten fruit.
 - [ ] 5. **Sim test:**
   - the curve at t = 0, 30, 60, 90 and 120 s

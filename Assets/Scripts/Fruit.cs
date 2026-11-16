@@ -29,6 +29,11 @@ public class Fruit : MonoBehaviour
     public FloorBasketFollower floor => m_Floor;
 
     /// <summary>
+    /// How fast the fruit is falling, in meters per second: its type's speed times the round's speed factor.
+    /// </summary>
+    public float speed => m_Type != null ? m_Type.fallSpeed * m_SpeedFactor : 0f;
+
+    /// <summary>
     /// While true the fruit hangs where it is, for example while tracking is lost.
     /// Pausing this way rather than with Time.timeScale keeps the basket following the phone.
     /// </summary>
@@ -55,7 +60,7 @@ public class Fruit : MonoBehaviour
             return;
 
         var from = transform.position;
-        var to = from + Vector3.down * (m_Type.fallSpeed * m_SpeedFactor * Time.deltaTime);
+        var to = from + Vector3.down * (speed * Time.deltaTime);
         transform.position = to;
         transform.Rotate(0f, m_SpinSpeed * Time.deltaTime, 0f, Space.World);
 

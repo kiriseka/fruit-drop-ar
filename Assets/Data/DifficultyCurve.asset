@@ -12,6 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4262b5e38b517d145970ca3a6ed6f6c1, type: 3}
   m_Name: DifficultyCurve
   m_EditorClassIdentifier: Assembly-CSharp::DifficultyCurve
+  m_StartInterval: 2
+  m_IntervalDropPerSecond: 0.015
+  m_MinInterval: 0.7
+  m_SpeedGainPerSecond: 0.008
+  m_MaxSpeedFactor: 1.6
+  m_StartHalfAngle: 20
+  m_HalfAngleRampSeconds: 60
+  m_DoubleDropStartSeconds: 30
+  m_DoubleDropChance: 0.25
+  m_DoubleDropMinSeparation: 0.5
+  m_DoubleDropLandingGap: 0.7
   m_StartHazardShare: 0.02
   m_EndHazardShare: 0.1
   m_HazardRampSeconds: 120

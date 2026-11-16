@@ -19,7 +19,8 @@ public class FruitSpawner : MonoBehaviour
     FruitType[] m_FruitTypes;
 
     [SerializeField]
-    [Tooltip("How the round gets harder over time. Without it, fruit to avoid keeps the share its weight gives it.")]
+    [Tooltip("How the round gets harder over time. Without it the pace, spread and fall speed stay as set below, " +
+        "and fruit to avoid keeps the share its weight gives it.")]
     DifficultyCurve m_Difficulty;
 
     [SerializeField]
@@ -28,7 +29,7 @@ public class FruitSpawner : MonoBehaviour
     float m_RooftopHeight = 2.5f;
 
     [SerializeField]
-    [Tooltip("Seconds between drops.")]
+    [Tooltip("Seconds between drops when there is no difficulty curve.")]
     float m_SpawnInterval = 2f;
 
     [SerializeField]
@@ -44,7 +45,7 @@ public class FruitSpawner : MonoBehaviour
     float m_MaxLandingDistance = 2.5f;
 
     [SerializeField]
-    [Tooltip("How far to either side of straight ahead, in degrees, a landing spot can be.")]
+    [Tooltip("How far to either side of straight ahead, in degrees, a landing spot can be when there is no difficulty curve.")]
     float m_LandingHalfAngle = 20f;
 
     [SerializeField]
@@ -66,6 +67,11 @@ public class FruitSpawner : MonoBehaviour
     /// Called when a fruit is caught (true) or reaches the floor (false).
     /// </summary>
     public event Action<Fruit, bool> fruitLanded;
+
+    /// <summary>
+    /// Called when a fruit appears on the rooftop and starts to fall.
+    /// </summary>
+    public event Action<Fruit> fruitSpawned;
 
     /// <summary>
     /// True between <see cref="StartSpawning"/> and <see cref="StopSpawning"/>.
@@ -158,16 +164,55 @@ public class FruitSpawner : MonoBehaviour
         if (m_TimeUntilSpawn > 0f)
             return;
 
-        m_TimeUntilSpawn += m_SpawnInterval;
-        if (!TryPickLandingSpot(out var spot))
+        bool hasCurve = m_Difficulty != null;
+        m_TimeUntilSpawn += hasCurve ? m_Difficulty.SpawnInterval(m_RoundTime) : m_SpawnInterval;
+        float halfAngle = hasCurve ? m_Difficulty.LandingHalfAngle(m_RoundTime, HalfHorizontalFieldOfView()) : m_LandingHalfAngle;
+        if (!TryPickLandingSpot(halfAngle, out var spot))
         {
             Debug.Log("[FruitSpawner] No reachable spot on the detected floor, skipping this drop");
             return;
         }
 
         var fruitType = NextType();
-        if (fruitType != null)
-            Spawn(fruitType, spot);
+        if (fruitType == null)
+            return;
+
+        float speedFactor = hasCurve ? m_Difficulty.SpeedFactor(m_RoundTime) : 1f;
+        Spawn(fruitType, spot, m_RooftopHeight, speedFactor);
+        if (hasCurve && UnityEngine.Random.value < m_Difficulty.DoubleDropChance(m_RoundTime))
+            SpawnSecond(fruitType, spot, halfAngle, speedFactor);
+    }
+
+    // Half the angle the phone sees from side to side, in degrees. Read from the projection matrix, because
+    // on a phone AR sets that matrix from the real camera and leaves Camera.fieldOfView as it was.
+    float HalfHorizontalFieldOfView()
+    {
+        return Mathf.Atan(1f / m_Camera.projectionMatrix.m00) * Mathf.Rad2Deg;
+    }
+
+    // The second fruit of a double drop: on its own spot, well away from the first, and from high enough
+    // that it reaches the floor a moment after the first, so the basket has time to get from one to the other.
+    void SpawnSecond(FruitType firstType, Vector3 firstSpot, float halfAngle, float speedFactor)
+    {
+        for (int i = 0; i < m_LandingAttempts; i++)
+        {
+            if (!TryPickLandingSpot(halfAngle, out var spot))
+                return;
+
+            if ((spot - firstSpot).sqrMagnitude < m_Difficulty.doubleDropMinSeparation * m_Difficulty.doubleDropMinSeparation)
+                continue;
+
+            var fruitType = NextType();
+            if (fruitType == null)
+                return;
+
+            float firstFallSeconds = m_RooftopHeight / (firstType.fallSpeed * speedFactor);
+            float height = fruitType.fallSpeed * speedFactor * (firstFallSeconds + m_Difficulty.doubleDropLandingGap);
+
+            // A slower second fruit keeps the gap from the rooftop itself; no fruit starts below the rooftop.
+            Spawn(fruitType, spot, Mathf.Max(m_RooftopHeight, height), speedFactor);
+            return;
+        }
     }
 
     // A scripted type if any are lined up, otherwise a random pick with the share of fruit to avoid
@@ -234,13 +279,20 @@ public class FruitSpawner : MonoBehaviour
     /// </summary>
     public bool HasLandingSpot()
     {
-        return m_Camera != null && m_Floor.hasPlaneFloor && TryPickLandingSpot(out _);
+        // Checked with the narrow angle a round starts with: that is the floor the first drops need.
+        return m_Camera != null && m_Floor.hasPlaneFloor && TryPickLandingSpot(StartHalfAngle(), out _);
+    }
+
+    float StartHalfAngle()
+    {
+        return m_Difficulty != null ? m_Difficulty.LandingHalfAngle(0f, 0f) : m_LandingHalfAngle;
     }
 
     /// <summary>
-    /// Picks a random spot on the detected floor ahead of the phone, within the landing distance band.
+    /// Picks a random spot on the detected floor ahead of the phone, within the landing distance band and
+    /// <paramref name="halfAngle"/> degrees to either side of straight ahead.
     /// </summary>
-    bool TryPickLandingSpot(out Vector3 spot)
+    bool TryPickLandingSpot(float halfAngle, out Vector3 spot)
     {
         var cameraTransform = m_Camera.transform;
         var forward = Vector3.ProjectOnPlane(cameraTransform.forward, Vector3.up);
@@ -252,7 +304,7 @@ public class FruitSpawner : MonoBehaviour
         forward.Normalize();
         for (int i = 0; i < m_LandingAttempts; i++)
         {
-            var direction = Quaternion.AngleAxis(UnityEngine.Random.Range(-m_LandingHalfAngle, m_LandingHalfAngle), Vector3.up) * forward;
+            var direction = Quaternion.AngleAxis(UnityEngine.Random.Range(-halfAngle, halfAngle), Vector3.up) * forward;
             spot = cameraTransform.position + direction * UnityEngine.Random.Range(m_MinLandingDistance, m_MaxLandingDistance);
             spot.y = m_Floor.floorHeight;
             if (m_Floor.IsOnDetectedFloor(spot))
@@ -263,12 +315,13 @@ public class FruitSpawner : MonoBehaviour
         return false;
     }
 
-    void Spawn(FruitType fruitType, Vector3 spot)
+    void Spawn(FruitType fruitType, Vector3 spot, float height, float speedFactor)
     {
         var pool = GetPool(fruitType);
         var fruit = pool.Count > 0 ? pool.Pop() : Instantiate(fruitType.prefab, transform).GetComponent<Fruit>();
         m_ActiveFruit.Add(fruit);
-        fruit.Launch(fruitType, spot + Vector3.up * m_RooftopHeight, 1f, m_Floor, OnFruitLanded);
+        fruit.Launch(fruitType, spot + Vector3.up * height, speedFactor, m_Floor, OnFruitLanded);
+        fruitSpawned?.Invoke(fruit);
     }
 
     void OnFruitLanded(Fruit fruit, bool caught)

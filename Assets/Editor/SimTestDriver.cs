@@ -79,6 +79,9 @@ public static class SimTestDriver
             "hud" => Hud(),
             "score-round" => ScoreRound(),
             "best" => Best(),
+            "curve" => Curve(),
+            "picks" => Picks(),
+            "long-round" => LongRound(),
             _ => null,
         };
 
@@ -967,6 +970,285 @@ public static class SimTestDriver
         yield return 0.3f;
         Log($"Planned {plan}, got {outcomes}; {game.state}, score {score.score} (worked by hand 10), best {score.highScore}, " +
             $"panel final \"{HudText("Final Score Text")}\", best line \"{HudText("Best Text")}\"");
+    }
+
+    const string k_CurvePath = "Assets/Data/DifficultyCurve.asset";
+
+    /// <summary>
+    /// V0.6 step 3: the difficulty curve against values worked by hand from the difficulty table, for a phone
+    /// that sees 30 degrees to each side.
+    /// </summary>
+    static IEnumerator<float> Curve()
+    {
+        var curve = AssetDatabase.LoadAssetAtPath<DifficultyCurve>(k_CurvePath);
+        var rows = new (float t, float interval, float speed, float angle, float rotten, float doubles)[]
+        {
+            (0f, 2.00f, 1.00f, 20f, 0.02f, 0f),
+            (30f, 1.55f, 1.24f, 25f, 0.04f, 0.25f),
+            (60f, 1.10f, 1.48f, 30f, 0.06f, 0.25f),
+            (90f, 0.70f, 1.60f, 30f, 0.08f, 0.25f),
+            (120f, 0.70f, 1.60f, 30f, 0.10f, 0.25f),
+        };
+
+        int failures = 0;
+        foreach (var row in rows)
+        {
+            float interval = curve.SpawnInterval(row.t);
+            float speed = curve.SpeedFactor(row.t);
+            float angle = curve.LandingHalfAngle(row.t, 30f);
+            float rotten = curve.HazardShare(row.t);
+            float doubles = curve.DoubleDropChance(row.t);
+            bool ok = Mathf.Abs(interval - row.interval) < 0.001f && Mathf.Abs(speed - row.speed) < 0.001f &&
+                Mathf.Abs(angle - row.angle) < 0.01f && Mathf.Abs(rotten - row.rotten) < 0.0001f && Mathf.Abs(doubles - row.doubles) < 0.0001f;
+            if (!ok)
+                failures++;
+
+            Log($"t = {row.t:F0} s: gap {interval:F2} s, speed x{speed:F2}, spread {angle:F1} deg, rotten {rotten * 100f:F0} %, " +
+                $"double {doubles * 100f:F0} %: {(ok ? "as worked by hand" : "FAIL")}");
+        }
+
+        Log($"Just before doubles start (29.9 s): double {curve.DoubleDropChance(29.9f) * 100f:F0} %. " +
+            $"Phone that sees only 15 deg to each side, at 60 s: spread {curve.LandingHalfAngle(60f, 15f):F1} deg");
+        Log(failures == 0 ? "Curve matches the table" : $"FAIL: {failures} rows differ");
+        yield break;
+    }
+
+    static FruitType[] SpawnerTypes(FruitSpawner spawner)
+    {
+        var list = new SerializedObject(spawner).FindProperty("m_FruitTypes");
+        var types = new FruitType[list.arraySize];
+        for (int i = 0; i < types.Length; i++)
+            types[i] = (FruitType)list.GetArrayElementAtIndex(i).objectReferenceValue;
+
+        return types;
+    }
+
+    /// <summary>
+    /// V0.6 step 2: how often each fruit type is picked, at the start of a round and once the share of rotten
+    /// fruit has finished rising, against shares worked by hand from the table. Seeded, so it repeats exactly.
+    /// </summary>
+    static IEnumerator<float> Picks()
+    {
+        var types = SpawnerTypes(Object.FindAnyObjectByType<FruitSpawner>());
+        var curve = AssetDatabase.LoadAssetAtPath<DifficultyCurve>(k_CurvePath);
+
+        // Red, green, orange, lemon, golden, rotten. At 120 s the rotten share is 10 %, and the other five
+        // split the remaining 90 % in their 40 : 25 : 20 : 10 : 3 proportions.
+        var cases = new (float t, float[] shares)[]
+        {
+            (0f, new[] { 40f, 25f, 20f, 10f, 3f, 2f }),
+            (120f, new[] { 36.73f, 22.96f, 18.37f, 9.18f, 2.76f, 10f }),
+        };
+
+        foreach (var (t, shares) in cases)
+        {
+            foreach (int count in new[] { 1000, 100000 })
+            {
+                var random = new System.Random(2026);
+                var counts = new int[types.Length];
+                for (int i = 0; i < count; i++)
+                    counts[Array.IndexOf(types, FruitSpawner.PickType(types, curve.HazardShare(t), (float)random.NextDouble()))]++;
+
+                float worst = 0f;
+                var parts = new List<string>();
+                for (int i = 0; i < types.Length; i++)
+                {
+                    float share = 100f * counts[i] / count;
+                    worst = Mathf.Max(worst, Mathf.Abs(share - shares[i]));
+                    parts.Add($"{types[i].displayName} {share:F1} ({shares[i]:F1})");
+                }
+
+                Log($"t = {t:F0} s, {count} picks: {string.Join(", ", parts)}. Furthest from the table: {worst:F1} points " +
+                    $"{(worst <= 2f ? "(within 2)" : "FAIL: more than 2")}");
+            }
+        }
+
+        yield break;
+    }
+
+    /// <summary>
+    /// V0.6 step 3: three minutes of drops with the camera following the fruit, measured against the difficulty
+    /// curve in 30-second parts. The spawner is started directly, without lives, so the round cannot end early.
+    /// The camera goes to whichever fruit reaches the floor next and leaves rotten fruit alone.
+    /// </summary>
+    static IEnumerator<float> LongRound()
+    {
+        const float duration = 180f;
+        const float part = 30f;
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var curve = AssetDatabase.LoadAssetAtPath<DifficultyCurve>(k_CurvePath);
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        yield return 2f;
+        var camera = Camera.main;
+        float halfFov = Mathf.Atan(1f / camera.projectionMatrix.m00) * Mathf.Rad2Deg;
+        Log($"The view is {halfFov:F1} deg to each side");
+
+        var drops = new List<(float t, int frame, FruitType type, float speedFactor, float fallSeconds, Vector3 spot, float angle)>();
+        var landings = new List<(float t, bool caught, bool rotten)>();
+        int skipped = 0, errors = 0;
+        void Spawned(Fruit fruit)
+        {
+            var spot = fruit.transform.position;
+            float height = spot.y - follower.floorHeight;
+            spot.y = follower.floorHeight;
+            var flat = spot - camera.transform.position;
+            flat.y = 0f;
+            var forward = Vector3.ProjectOnPlane(camera.transform.forward, Vector3.up);
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = Vector3.ProjectOnPlane(camera.transform.up, Vector3.up);
+
+            drops.Add((spawner.roundTime, Time.frameCount, fruit.type, fruit.speed / fruit.type.fallSpeed, height / fruit.speed, spot, Vector3.Angle(forward, flat)));
+        }
+
+        void Landed(Fruit fruit, bool caught) => landings.Add((spawner.roundTime, caught, fruit.type.isHazard));
+        Application.LogCallback watchLog = (message, stack, type) =>
+        {
+            if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert)
+                errors++;
+            else if (message.Contains("skipping this drop"))
+                skipped++;
+        };
+
+        spawner.fruitSpawned += Spawned;
+        spawner.fruitLanded += Landed;
+        Application.logMessageReceived += watchLog;
+        spawner.StartSpawning();
+        bool captured = false;
+        while (spawner.roundTime < duration)
+        {
+            Fruit next = null;
+            float nextSeconds = float.MaxValue;
+            int falling = 0;
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                falling++;
+                float seconds = (fruit.transform.position.y - follower.floorHeight) / fruit.speed;
+                if (!fruit.type.isHazard && seconds < nextSeconds)
+                {
+                    nextSeconds = seconds;
+                    next = fruit;
+                }
+            }
+
+            if (next != null)
+            {
+                var spot = next.transform.position;
+                spot.y = follower.floorHeight;
+                LookAt(spot);
+            }
+
+            // One frame late in the round, with several fruits in the air and one about to land.
+            if (!captured && spawner.roundTime > 100f && falling >= 3 && nextSeconds < 0.4f)
+            {
+                ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-long-round.png"));
+                captured = true;
+            }
+
+            yield return 0f;
+        }
+
+        spawner.fruitSpawned -= Spawned;
+        spawner.fruitLanded -= Landed;
+        Application.logMessageReceived -= watchLog;
+        spawner.StopSpawning();
+
+        // A double drop is two fruits in one frame; the first of each frame counts as the drop.
+        float worstSpeed = 0f, worstAngle = 0f;
+        int pairs = 0, pairsTooClose = 0, pairsTooSoon = 0;
+        float minSeparation = float.MaxValue, minLandingGap = float.MaxValue;
+        for (int p = 0; p * part < duration; p++)
+        {
+            float from = p * part, to = from + part;
+            int events = 0, doubles = 0, rotten = 0, fruits = 0, gaps = 0;
+            float gapSum = 0f, expectedGapSum = 0f, speedSum = 0f, maxAngle = 0f;
+            float lastEvent = -1f;
+            for (int i = 0; i < drops.Count; i++)
+            {
+                var drop = drops[i];
+                bool second = i > 0 && drops[i - 1].frame == drop.frame;
+                if (!second)
+                {
+                    if (lastEvent >= from && lastEvent < to)
+                    {
+                        gapSum += drop.t - lastEvent;
+                        expectedGapSum += curve.SpawnInterval(lastEvent);
+                        gaps++;
+                    }
+
+                    lastEvent = drop.t;
+                }
+
+                if (drop.t < from || drop.t >= to)
+                    continue;
+
+                fruits++;
+                speedSum += drop.speedFactor;
+                maxAngle = Mathf.Max(maxAngle, drop.angle);
+                worstSpeed = Mathf.Max(worstSpeed, Mathf.Abs(drop.speedFactor - curve.SpeedFactor(drop.t)));
+                worstAngle = Mathf.Max(worstAngle, drop.angle - curve.LandingHalfAngle(drop.t, halfFov));
+                if (drop.type.isHazard)
+                    rotten++;
+
+                if (!second)
+                {
+                    events++;
+                    continue;
+                }
+
+                doubles++;
+                pairs++;
+                var first = drops[i - 1];
+                float separation = Vector3.Distance(first.spot, drop.spot);
+                float landingGap = drop.fallSeconds - first.fallSeconds;
+                minSeparation = Mathf.Min(minSeparation, separation);
+                minLandingGap = Mathf.Min(minLandingGap, landingGap);
+                if (separation < 0.5f - 0.001f)
+                    pairsTooClose++;
+
+                if (landingGap < 0.7f - 0.001f)
+                    pairsTooSoon++;
+            }
+
+            int caught = 0, missed = 0, rottenCaught = 0;
+            foreach (var landing in landings)
+            {
+                if (landing.t < from || landing.t >= to)
+                    continue;
+
+                if (landing.rotten)
+                    rottenCaught += landing.caught ? 1 : 0;
+                else if (landing.caught)
+                    caught++;
+                else
+                    missed++;
+            }
+
+            float mid = from + part * 0.5f;
+            Log($"{from:F0}-{to:F0} s: {events} drops ({doubles} double), {fruits} fruits, {rotten} rotten; " +
+                $"gap {(gaps > 0 ? gapSum / gaps : 0f):F2} s (curve {(gaps > 0 ? expectedGapSum / gaps : 0f):F2}); " +
+                $"speed x{(fruits > 0 ? speedSum / fruits : 0f):F2} (curve x{curve.SpeedFactor(mid):F2} mid-part); " +
+                $"widest {maxAngle:F1} deg (limit {curve.LandingHalfAngle(to, halfFov):F1}); " +
+                $"caught {caught}, missed {missed}, rotten caught {rottenCaught}");
+        }
+
+        Log($"Speed factor furthest from the curve: {worstSpeed:F3}. Landing spots past the spread limit by at most {Mathf.Max(0f, worstAngle):F2} deg");
+        Log(pairs > 0
+            ? $"Double drops: {pairs}; closest pair {minSeparation:F2} m apart ({pairsTooClose} under 0.5 m); " +
+                $"shortest time between the two landings {minLandingGap:F2} s ({pairsTooSoon} under 0.7 s)"
+            : "FAIL: no double drops in three minutes");
+        Log($"Drops skipped for lack of floor: {skipped}. Errors logged: {errors}");
     }
 
     static Transform FindDeep(string name)
