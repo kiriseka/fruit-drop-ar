@@ -10,7 +10,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
   - Phone test of V0.5 (`Builds/V0.5.apk`, also on the v0.5 GitHub pre-release) on the Realme 7, with the checklist in the release notes. Not tested yet. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3), so V0.5 replaces the V0.4 phone test.
-- **Sim workflow change:** Unity_RunCommand refuses code that enters Play mode or builds. To run a scenario, set SessionState `SimTestDriver.Pending` to its name through Unity_RunCommand, then call Unity_ManageEditor `Play`. For builds, see V0.5 step 5.
+- **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
 
 ## Working rules
 
@@ -247,7 +247,16 @@ This file is the single source of truth for the gameplay phase. Any session that
     - 42 doubles in 177 drops after 30 s (24 %); closest pair 0.52 m apart; shortest time between the two landings 0.70 s.
     - 9 drops were skipped for lack of floor at the wider angles, which is why some measured gaps are longer than the curve.
     - No rotten fruit was caught; 0 errors. The misses appear only late, so the round does get harder, even for a camera that aims perfectly.
-- [ ] 4. **LandingMarker upgrade:** shrinks from 0.3 m to basket size as the fruit falls; red for rotten fruit.
+- [x] 4. **LandingMarker upgrade:** shrinks from 0.3 m to basket size as the fruit falls; red for rotten fruit.
+  - **Done, with the sizes changed** (agreed with the user in the run plan): the ring starts at twice the catch size, 0.60 m across, and closes in to the 0.30 m catch size as the fruit comes down. So it is easier to spot from afar, its size shows how long is left, and on arrival it still means "a basket whose centre is inside catches the fruit". `Fruit.fallProgress` (0 on the rooftop, 1 on the floor) drives it.
+  - Under fruit to avoid the ring is red E63836, set through a `MaterialPropertyBlock`, so all rings still share one material.
+  - **Sim scenario `marker`** (a red apple and a rotten apple falling side by side):
+    - both rings 0.0000 m from under their fruit and 0.0040 m above the floor
+    - red apple 0.72 m up: ring 0.381 m across (worked by hand 0.381), colour F4C430
+    - rotten apple 0.50 m up: ring 0.355 m across (worked by hand 0.355), colour E63836
+    - 0.597 m across two frames after the start, 0.300 m just before landing, hidden after landing
+    - the capture shows the red and the yellow ring side by side
+  - **Sim runs are now started from the menu:** `Fruit Drop > Sim > <scenario>` or `All` (`SimTestDriver.RunQueue`). It compiles changed scripts, plays each scenario in its own Play mode session, and ends `Temp/SimTest.log` with "All done". This replaces setting SessionState through Unity_RunCommand.
 - [ ] 5. **Sim test:**
   - the curve at t = 0, 30, 60, 90 and 120 s
   - 1,000 picks within ±2 % of the shares

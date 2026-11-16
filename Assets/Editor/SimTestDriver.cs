@@ -12,12 +12,19 @@ using Object = UnityEngine.Object;
 /// Development tool, not part of the game. Runs scripted checks in XR Simulation by steering the simulated
 /// camera, and writes the results to the console and to Temp/SimTest.log.
 /// Call <see cref="RunInPlayMode"/> from Edit mode, or <see cref="Run"/> while already playing.
+/// The <b>Fruit Drop > Sim</b> menu runs one scenario, or all of them one after another, each in its own
+/// Play mode session; the log ends with "All done".
 /// </summary>
 [InitializeOnLoad]
 public static class SimTestDriver
 {
     const string k_LogPath = "Temp/SimTest.log";
     const string k_PendingKey = "SimTestDriver.Pending";
+    const string k_QueueKey = "SimTestDriver.Queue";
+    const string k_QueueEnd = "#end";
+
+    // Every scenario, in the order the regression run plays them.
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -29,6 +36,13 @@ public static class SimTestDriver
     {
         EditorApplication.playModeStateChanged += state =>
         {
+            if (state == PlayModeStateChange.EnteredEditMode)
+            {
+                // Not from inside the callback: Play mode cannot be entered again while it is still being left.
+                EditorApplication.delayCall += NextInQueue;
+                return;
+            }
+
             string pending = SessionState.GetString(k_PendingKey, "");
             if (state != PlayModeStateChange.EnteredPlayMode || pending == "")
                 return;
@@ -36,7 +50,81 @@ public static class SimTestDriver
             SessionState.EraseString(k_PendingKey);
             Run(pending);
             s_ExitWhenDone = true;
+
+            // An unknown scenario never starts, so nothing would end Play mode for it.
+            if (s_Routine == null)
+                Stop();
         };
+
+        // A queue that had to wait for changed scripts to compile starts here, after the reload.
+        EditorApplication.delayCall += NextInQueue;
+    }
+
+    [MenuItem("Fruit Drop/Sim/All")] static void MenuAll() => RunQueue(k_AllScenarios);
+    [MenuItem("Fruit Drop/Sim/floor-edge")] static void MenuFloorEdge() => RunQueue("floor-edge");
+    [MenuItem("Fruit Drop/Sim/drop")] static void MenuDrop() => RunQueue("drop");
+    [MenuItem("Fruit Drop/Sim/marker")] static void MenuMarker() => RunQueue("marker");
+    [MenuItem("Fruit Drop/Sim/spawner")] static void MenuSpawner() => RunQueue("spawner");
+    [MenuItem("Fruit Drop/Sim/play")] static void MenuPlay() => RunQueue("play");
+    [MenuItem("Fruit Drop/Sim/states")] static void MenuStates() => RunQueue("states");
+    [MenuItem("Fruit Drop/Sim/flow")] static void MenuFlow() => RunQueue("flow");
+    [MenuItem("Fruit Drop/Sim/hud")] static void MenuHud() => RunQueue("hud");
+    [MenuItem("Fruit Drop/Sim/score-round, then best")] static void MenuScoreRound() => RunQueue("score-round,best");
+    [MenuItem("Fruit Drop/Sim/curve, then picks")] static void MenuCurve() => RunQueue("curve,picks");
+    [MenuItem("Fruit Drop/Sim/variety")] static void MenuVariety() => RunQueue("variety");
+    [MenuItem("Fruit Drop/Sim/long-round")] static void MenuLongRound() => RunQueue("long-round");
+
+    /// <summary>
+    /// Runs scenarios one after another, each in its own Play mode session, so every one starts from a fresh
+    /// scan. <paramref name="scenarios"/> is a comma-separated list. Changed scripts are compiled first.
+    /// </summary>
+    public static void RunQueue(string scenarios)
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            Debug.LogWarning("[SimTest] Leave Play mode before starting a run");
+            return;
+        }
+
+        File.WriteAllText(k_LogPath, "");
+        SessionState.SetString(k_QueueKey, scenarios);
+        AssetDatabase.Refresh();
+
+        // A compile ends in a script reload, and the static constructor carries on from there. If the compile
+        // fails there is no reload, so that case is watched for here.
+        if (EditorApplication.isCompiling)
+            EditorApplication.update += WaitForFailedCompile;
+        else
+            NextInQueue();
+    }
+
+    static void WaitForFailedCompile()
+    {
+        if (EditorApplication.isCompiling)
+            return;
+
+        EditorApplication.update -= WaitForFailedCompile;
+        if (EditorUtility.scriptCompilationFailed)
+            NextInQueue();
+    }
+
+    static void NextInQueue()
+    {
+        string queue = SessionState.GetString(k_QueueKey, "");
+        if (queue == "" || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)
+            return;
+
+        if (queue == k_QueueEnd || EditorUtility.scriptCompilationFailed)
+        {
+            SessionState.EraseString(k_QueueKey);
+            File.AppendAllText(k_LogPath, (queue == k_QueueEnd ? "" : "FAIL: the scripts do not compile\n") + "All done\n");
+            return;
+        }
+
+        int comma = queue.IndexOf(',');
+        SessionState.SetString(k_QueueKey, comma < 0 ? k_QueueEnd : queue.Substring(comma + 1));
+        SessionState.SetString(k_PendingKey, comma < 0 ? queue : queue.Substring(0, comma));
+        EditorApplication.EnterPlaymode();
     }
 
     /// <summary>
@@ -60,7 +148,10 @@ public static class SimTestDriver
     /// </summary>
     public static void Run(string scenario)
     {
-        File.WriteAllText(k_LogPath, "");
+        // A queued run keeps one log for all of its scenarios.
+        if (SessionState.GetString(k_QueueKey, "") == "")
+            File.WriteAllText(k_LogPath, "");
+
         if (!EditorApplication.isPlaying)
         {
             Log("FAIL: enter Play mode first");
@@ -82,6 +173,7 @@ public static class SimTestDriver
             "curve" => Curve(),
             "picks" => Picks(),
             "long-round" => LongRound(),
+            "variety" => Variety(),
             _ => null,
         };
 
@@ -311,9 +403,21 @@ public static class SimTestDriver
         Object.Destroy(fruit.gameObject);
     }
 
+    // Colour the ring is drawn with: the property block's if the marker set one, otherwise the material's.
+    static Color RingColor(LandingMarker marker)
+    {
+        var renderer = marker.GetComponent<Renderer>();
+        var block = new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(block);
+        int id = Shader.PropertyToID("_BaseColor");
+        return block.HasProperty(id) ? block.GetColor(id) : renderer.sharedMaterial.GetColor(id);
+    }
+
     /// <summary>
-    /// V0.4 step 5: the landing marker stays on the floor under a falling fruit and disappears with it.
-    /// Saves a Game view capture with the fruit held low in view.
+    /// V0.4 step 5 and V0.6 step 4: the landing ring stays on the floor under a falling fruit, closes in from
+    /// twice the catch size to the catch size as the fruit comes down, is red under rotten fruit, and disappears
+    /// with the fruit. A red apple and a rotten apple fall side by side; a Game view capture is saved with both
+    /// held low in view.
     /// </summary>
     static IEnumerator<float> Marker()
     {
@@ -326,41 +430,130 @@ public static class SimTestDriver
             yield break;
 
         yield return 2f;
-        var fruitType = AssetDatabase.LoadAssetAtPath<FruitType>("Assets/Data/RedApple.asset");
-        var fruit = Object.Instantiate(fruitType.prefab).GetComponent<Fruit>();
-        var marker = fruit.GetComponentInChildren<LandingMarker>(true);
-        if (marker == null)
-        {
-            Log("FAIL: the fruit prefab has no LandingMarker");
-            yield break;
-        }
-
+        const float rooftop = 2.5f;
+        const float catchSize = 0.30f;
+        string[] names = { "RedApple", "RottenApple" };
+        var types = new FruitType[names.Length];
+        var fruits = new Fruit[names.Length];
+        var markers = new LandingMarker[names.Length];
+        var landed = new bool[names.Length];
+        var startSize = new float[names.Length];
+        var lastSize = new float[names.Length];
         var camera = Camera.main.transform;
         var forward = Vector3.ProjectOnPlane(camera.forward, Vector3.up).normalized;
         var right = Vector3.Cross(Vector3.up, forward);
-        var spot = camera.position + forward * 1.0f + right * 0.3f;
-        spot.y = follower.floorHeight;
+        for (int i = 0; i < names.Length; i++)
+        {
+            types[i] = AssetDatabase.LoadAssetAtPath<FruitType>($"Assets/Data/{names[i]}.asset");
+            fruits[i] = Object.Instantiate(types[i].prefab).GetComponent<Fruit>();
+            markers[i] = fruits[i].GetComponentInChildren<LandingMarker>(true);
+            if (markers[i] == null)
+            {
+                Log($"FAIL: the {names[i]} prefab has no LandingMarker");
+                yield break;
+            }
 
-        bool landed = false;
-        fruit.Launch(fruitType, spot + Vector3.up * 2.5f, 1f, follower, (f, c) => landed = true);
-        while (fruit.transform.position.y > follower.floorHeight + 0.5f)
+            var spot = camera.position + forward * 1.0f + right * (i == 0 ? 0.3f : -0.3f);
+            spot.y = follower.floorHeight;
+            int index = i;
+            fruits[i].Launch(types[i], spot + Vector3.up * rooftop, 1f, follower, (f, c) => landed[index] = true);
+        }
+
+        // Two frames, so the rings have been placed at least once.
+        yield return 0f;
+        yield return 0f;
+        for (int i = 0; i < names.Length; i++)
+            startSize[i] = markers[i].transform.lossyScale.x;
+
+        while (fruits[0].transform.position.y > follower.floorHeight + 0.5f && fruits[1].transform.position.y > follower.floorHeight + 0.5f)
             yield return 0f;
 
-        fruit.isPaused = true;
+        foreach (var fruit in fruits)
+            fruit.isPaused = true;
+
         yield return 0.5f;
-        var markerPosition = marker.transform.position;
-        var fruitPosition = fruit.transform.position;
-        Log($"Marker {Vector2.Distance(new Vector2(markerPosition.x, markerPosition.z), new Vector2(fruitPosition.x, fruitPosition.z)):F4} m from under the fruit, " +
-            $"{markerPosition.y - follower.floorHeight:F4} m above the floor, active {marker.gameObject.activeInHierarchy}");
+        for (int i = 0; i < names.Length; i++)
+        {
+            var markerPosition = markers[i].transform.position;
+            var fruitPosition = fruits[i].transform.position;
+            float height = fruitPosition.y - follower.floorHeight;
+            float expected = catchSize * (2f - (rooftop - height) / (rooftop - types[i].radius));
+            Log($"{types[i].displayName}: ring {Vector2.Distance(new Vector2(markerPosition.x, markerPosition.z), new Vector2(fruitPosition.x, fruitPosition.z)):F4} m from under the fruit, " +
+                $"{markerPosition.y - follower.floorHeight:F4} m above the floor, {markers[i].transform.lossyScale.x:F3} m across with the fruit {height:F2} m up " +
+                $"(worked by hand {expected:F3}), colour #{ColorUtility.ToHtmlStringRGB(RingColor(markers[i]))}");
+        }
+
         ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-marker.png"));
         yield return 1f;
 
-        fruit.isPaused = false;
-        while (!landed)
-            yield return 0.1f;
+        foreach (var fruit in fruits)
+            fruit.isPaused = false;
 
-        Log($"After landing: marker visible {marker.gameObject.activeInHierarchy}");
-        Object.Destroy(fruit.gameObject);
+        while (!landed[0] || !landed[1])
+        {
+            for (int i = 0; i < names.Length; i++)
+            {
+                if (!landed[i])
+                    lastSize[i] = markers[i].transform.lossyScale.x;
+            }
+
+            yield return 0f;
+        }
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            Log($"{types[i].displayName}: ring {startSize[i]:F3} m across on the rooftop, {lastSize[i]:F3} m just before landing; " +
+                $"after landing visible {markers[i].gameObject.activeInHierarchy}");
+            Object.Destroy(fruits[i].gameObject);
+        }
+    }
+
+    /// <summary>
+    /// V0.6 step 5: every fruit type held in the air in a row ahead of the camera, each over its ring, for one
+    /// Game view capture of how they look next to each other.
+    /// </summary>
+    static IEnumerator<float> Variety()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        if (!follower.hasPlaneFloor)
+            yield break;
+
+        yield return 2f;
+        var types = SpawnerTypes(Object.FindAnyObjectByType<FruitSpawner>());
+        var camera = Camera.main.transform;
+        var forward = Vector3.ProjectOnPlane(camera.forward, Vector3.up).normalized;
+        var right = Vector3.Cross(Vector3.up, forward);
+        var fruits = new List<Fruit>();
+        var parts = new List<string>();
+        for (int i = 0; i < types.Length; i++)
+        {
+            var fruit = Object.Instantiate(types[i].prefab).GetComponent<Fruit>();
+            var spot = camera.position + forward * 1.3f + right * ((i - (types.Length - 1) * 0.5f) * 0.36f);
+            spot.y = follower.floorHeight;
+            fruit.Launch(types[i], spot + Vector3.up * 2.5f, 1f, follower, null);
+
+            // Held at a different height each, so the rings show different stages of closing in.
+            fruit.isPaused = true;
+            fruit.transform.position = spot + Vector3.up * (0.30f + 0.06f * i);
+            fruits.Add(fruit);
+        }
+
+        yield return 0.5f;
+        foreach (var fruit in fruits)
+        {
+            var marker = fruit.GetComponentInChildren<LandingMarker>(true);
+            parts.Add($"{fruit.type.displayName} (ring {marker.transform.lossyScale.x:F2} m, #{ColorUtility.ToHtmlStringRGB(RingColor(marker))})");
+        }
+
+        Log($"In view: {string.Join(", ", parts)}");
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-variety.png"));
+        yield return 1f;
+        foreach (var fruit in fruits)
+            Object.Destroy(fruit.gameObject);
     }
 
     /// <summary>

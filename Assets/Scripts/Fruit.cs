@@ -16,6 +16,7 @@ public class Fruit : MonoBehaviour
     FloorBasketFollower m_Floor;
     CatchDetector m_Catcher;
     float m_SpeedFactor;
+    float m_StartHeight;
     Action<Fruit, bool> m_Landed;
 
     /// <summary>
@@ -34,6 +35,20 @@ public class Fruit : MonoBehaviour
     public float speed => m_Type != null ? m_Type.fallSpeed * m_SpeedFactor : 0f;
 
     /// <summary>
+    /// How far down the fruit is: 0 where it started on the rooftop, 1 when it touches the floor.
+    /// </summary>
+    public float fallProgress
+    {
+        get
+        {
+            if (m_Type == null || m_Floor == null)
+                return 0f;
+
+            return Mathf.InverseLerp(m_StartHeight, m_Type.radius, transform.position.y - m_Floor.floorHeight);
+        }
+    }
+
+    /// <summary>
     /// While true the fruit hangs where it is, for example while tracking is lost.
     /// Pausing this way rather than with Time.timeScale keeps the basket following the phone.
     /// </summary>
@@ -49,6 +64,7 @@ public class Fruit : MonoBehaviour
         m_SpeedFactor = speedFactor;
         m_Floor = floor;
         m_Landed = landed;
+        m_StartHeight = floor != null ? position.y - floor.floorHeight : 0f;
         isPaused = false;
         transform.SetPositionAndRotation(position, Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f));
         gameObject.SetActive(true);
