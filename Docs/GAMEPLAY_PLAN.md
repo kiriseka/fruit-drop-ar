@@ -6,7 +6,8 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.8 step 3 (clean-up and app identity).
+- **Next step:** V0.8 step 5 (version end): build `Builds/V0.8.apk`, tag `v0.8`, publish the pre-release with `Builds/V0.8-release-notes.md` (already written, not in git). Then the v1.0 release candidate.
+- **Paused for usage:** the usage limit was reached after V0.8 step 4. No resume task is scheduled; the earlier one (`fruitdrop-resume-20261117-0220`) is disabled. Remove this line when work resumes.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
   - Phone test of V0.7 (`Builds/V0.7.apk`, also on the v0.7 GitHub pre-release) on the Realme 7, with the checklist in its release notes. Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles) and the V0.7 ones.
@@ -352,9 +353,17 @@ This file is the single source of truth for the gameplay phase. Any session that
     - Icon: `Assets/Editor/IconGenerator.cs` (menu **Fruit Drop > Generate App Icon**) renders the game's own basket on the lemon colour to `Assets/Textures/AppIcon.png` (1024 px) and sets it as the default icon.
     - **Check:** the whole regression (18 scenarios) passed on the cleaned-up scene with 0 errors; the icon render shows the basket whole and centred.
     - `ProjectSettings.asset` is committed with the identity lines only; its `preloadedAssets` churn stays out, as before.
-- [ ] 4. **Automated tests:**
+- [x] 4. **Automated tests:**
   - EditMode: scoring, difficulty, catch geometry
   - PlayMode: XR Simulation floor and edge
+  - **Done.** The game scripts are now the assembly `FruitDropAR` (`Assets/Scripts/FruitDropAR.asmdef`) and the editor tools `FruitDropAR.Editor`, so that test assemblies can refer to them. Scene and prefab links are by file ID and were not affected.
+  - `Assets/Tests/EditMode` (36 tests, 0.4 s):
+    - `ScoreManagerTests`: the rising multiplier and its cap at 5, a miss, the golden apple's streak bonus, rotten fruit left to fall and caught, the score never below 0, the round ending once on the third lost life, the planned 205-point round of the sim test, a new round keeping the best score. The editor's saved best score is put back after each test.
+    - `DifficultyAndPickTests`: the curve against the table at 0, 30, 60, 90, 120 and 600 s, that it only ever gets harder, doubles starting at 30 s, a narrow phone, time before the round; pick shares at the start and after two minutes (100,000 seeded picks within 0.5 points), the ends of the roll, an empty list, only good fruit, a type with no weight.
+    - `CatchDetectorTests`: through the middle, just inside and outside the radius, a step that stays above or starts below the rim, moving up, a very long step, a slanted path judged where it crosses the rim, the basket's own position.
+  - `Assets/Tests/PlayMode` (1 test, 4.0 s): in XR Simulation the plane floor is found, its height is 0 ± 0.03 m, the basket stands on it, a point 10 m away is not floor, and clamping pulls it back and is stable. The Test Runner drives XR Simulation without trouble, so no fallback was needed; the `floor-edge` scenario stays as the more detailed check of the edge distances.
+  - **Run them** with **Fruit Drop > Run Tests** (EditMode, then PlayMode); the result goes to `Temp/TestResults.log`, ending "Tests done". They also show in the Test Runner window.
+  - **Result:** EditMode 36 passed, 0 failed; PlayMode 1 passed, 0 failed. `score-round` and `best` still pass through the menu-driven driver after the assembly split.
 - [ ] 5. **Version end:** V0.8. Realme 7 profiling and a 15-minute session go under "Waiting on user".
 
 ## v1.0 release candidate
