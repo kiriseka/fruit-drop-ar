@@ -6,11 +6,12 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.7 step 5 (full sim test, then version end).
+- **Next step:** V0.8 step 1 (pause and resume).
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
-  - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
-  - Listen to the five V0.7 sounds (WAVs in `Assets/Audio/`, or in the next build) and say if any should change. They were tested by event only, not by ear.
+  - Phone test of V0.7 (`Builds/V0.7.apk`, also on the v0.7 GitHub pre-release) on the Realme 7, with the checklist in its release notes. Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles) and the V0.7 ones.
+  - V0.7 points that only a person can judge: how the five sounds sound (also as WAVs in `Assets/Audio/`), whether the 40 ms vibration is felt, whether the sparkles and splash are large enough, and the shadow on a real floor.
+  - A playtest with 3–5 players.
 - **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
 
 ## Working rules
@@ -319,7 +320,9 @@ This file is the single source of truth for the gameplay phase. Any session that
   - **Design notes:**
     - A panel under `Safe Area`, shown until "Got it" is tapped, remembered with a PlayerPrefs flag. It covers the Start button.
     - The sim scenarios press buttons through `onClick`, which a covering panel does not stop, but `CanTap` checks would fail. Have the driver set the flag before every scenario except the one that tests the panel, the way it sets the best score in `NextInQueue`.
-- [ ] 5. **Sim test, then version end:** V0.7. A playtest with 3–5 players goes under "Waiting on user".
+- [x] 5. **Sim test, then version end:** V0.7. A playtest with 3–5 players goes under "Waiting on user".
+  - **Done.** The whole regression (`Fruit Drop > Sim > All`, now 17 scenarios) ran to the end with 0 errors at 76–166 frames a second: floor y 0.004–0.006; `score-round` 205 as worked by hand with "New best!"; `best` loads 205; `hud` 90 with "New best!"; `feedback` and both `onboarding` scenarios as in steps 2 and 4; `long-round` on the curve with 44 doubles (closest pair 0.50 m, shortest landing gap 0.70 s) and 0 / 0 / 2 / 6 / 3 / 2 misses in its six parts.
+  - `Builds/V0.7.apk`, 36.0 MB: 0 errors, 351 warnings, built in 4.2 min. The APK lists the `VIBRATE` permission (checked with `aapt dump permissions`). `gameplay` pushed, tagged `v0.7`, and published as a GitHub pre-release with the notes and phone checklist from `Builds/V0.7-release-notes.md` (not in git).
 
 ## V0.8 Robustness
 
