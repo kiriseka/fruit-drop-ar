@@ -8,6 +8,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 - **Work branch:** `gameplay`.
 - **Next step:** V0.7 step 2 (effects).
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
+- **Paused for usage:** stopped at a clean commit after V0.7 step 1, at 78 % of the 5-hour window (the weekly windows are at 24 % and 34 %). A scheduled task `fruitdrop-resume-20261117-0220` resumes at 2026-11-16 17:20 UTC. Remove this line when work resumes.
 - **Waiting on user:**
   - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
   - Listen to the five V0.7 sounds (WAVs in `Assets/Audio/`, or in the next build) and say if any should change. They were tested by event only, not by ear.
@@ -289,8 +290,17 @@ This file is the single source of truth for the gameplay phase. Any session that
   - catch sparkle, and a miss splash in the fruit's colour
   - basket bounce on catch
   - about 40 ms of vibration on a miss or a rotten catch
+  - **Design notes:**
+    - Build it like `GameAudio`: one component on the `Game` object that listens to `FruitSpawner.fruitLanded`, with pooled particle systems. The sparkle goes at the basket rim, the splash at the landing spot, tinted with `FruitType.color`. No splash for rotten fruit left to fall is fine; a small one is fine too.
+    - The bounce must scale a child of the basket, never its root: `FloorBasketFollower` owns the root's pose every frame.
+    - 40 ms needs the Android vibrator through `AndroidJavaObject` and the `VIBRATE` permission (`Handheld.Vibrate` is a fixed, much longer buzz). It does nothing in the editor, so how it feels goes under "Waiting on user".
+    - Extend the `feedback` scenario: one effect per event, and the basket back at its normal size afterwards.
 - [ ] 3. **Shadow:** a darker core plus a contact ring.
+  - **Design note:** `BasketShadow.png` was made by a one-off script that was not kept. Add a kept editor menu item that regenerates it, as `SoundGenerator` does for sounds.
 - [ ] 4. **Onboarding:** a first-run "how to play" screen and a clear-space safety reminder.
+  - **Design notes:**
+    - A panel under `Safe Area`, shown until "Got it" is tapped, remembered with a PlayerPrefs flag. It covers the Start button.
+    - The sim scenarios press buttons through `onClick`, which a covering panel does not stop, but `CanTap` checks would fail. Have the driver set the flag before every scenario except the one that tests the panel, the way it sets the best score in `NextInQueue`.
 - [ ] 5. **Sim test, then version end:** V0.7. A playtest with 3–5 players goes under "Waiting on user".
 
 ## V0.8 Robustness
@@ -298,10 +308,12 @@ This file is the single source of truth for the gameplay phase. Any session that
 - [ ] 1. **Pause and resume:**
   - a 3-2-1 countdown on resume after tracking loss
   - pause if the floor source drops below Plane during a round
+  - **Design note:** add a `Resuming` state at the end of the `GameState` enum (so saved values keep their meaning). It keeps the score and the spawner as they are, shows the HUD countdown, and fruit stays held until it ends.
 - [ ] 2. **Memory bound:** clear the sampled point IDs past 5,000 entries.
 - [ ] 3. **Clean-up:**
   - remove unused template objects and assets, only after checking nothing references them
   - product name "Fruit Drop AR", company "kiriseka", Android ID `com.kiriseka.fruitdropar`, app icon
+  - **Notes:** the iOS ID already is `com.kiriseka.fruitdropar`. With the new Android ID the app installs beside the older builds instead of over them, and the best score starts again at 0; say so in the release notes. Set the version name to match the tag from here on (it is still 1.0.0).
 - [ ] 4. **Automated tests:**
   - EditMode: scoring, difficulty, catch geometry
   - PlayMode: XR Simulation floor and edge
