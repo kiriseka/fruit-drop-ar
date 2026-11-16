@@ -6,9 +6,9 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.7 step 2 (effects).
+- **Next step:** finish V0.7 step 3 (shadow; see "To finish" under that step), then V0.7 step 2 (effects), step 4 and step 5.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
-- **Paused for usage:** stopped at a clean commit after V0.7 step 1, at 78 % of the 5-hour window (the weekly windows are at 24 % and 34 %). A scheduled task `fruitdrop-resume-20261117-0220` resumes at 2026-11-16 17:20 UTC. Remove this line when work resumes.
+- **Paused for usage:** stopped at a clean commit with V0.7 step 1 done and step 3 started, at about 95 % of the 5-hour window (the weekly windows are at about 26 % and 37 %). A scheduled task `fruitdrop-resume-20261117-0220` resumes at 2026-11-16 17:20 UTC. Remove this line when work resumes.
 - **Waiting on user:**
   - Phone test of V0.6 (`Builds/V0.6.apk`, also on the v0.6 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It includes the V0.5 points, which were never tested on a phone: the Start button, the score bar, hearts, countdown and Game Over panel. V0.4's Start button cannot receive taps (no GraphicRaycaster; fixed in V0.5 step 3).
   - Listen to the five V0.7 sounds (WAVs in `Assets/Audio/`, or in the next build) and say if any should change. They were tested by event only, not by ear.
@@ -297,6 +297,11 @@ This file is the single source of truth for the gameplay phase. Any session that
     - Extend the `feedback` scenario: one effect per event, and the basket back at its normal size afterwards.
 - [ ] 3. **Shadow:** a darker core plus a contact ring.
   - **Design note:** `BasketShadow.png` was made by a one-off script that was not kept. Add a kept editor menu item that regenerates it, as `SoundGenerator` does for sounds.
+  - **Started, not finished.** `Assets/Editor/ShadowGenerator.cs` (menu **Fruit Drop > Generate Shadow Texture**) is committed and its menu item was run once successfully, but the texture in the repository is still the V0.3 one.
+    - The V0.3 texture, measured (darkness by distance from the middle, 1 = edge of the 0.42 m quad): 0.70 from the middle to 0.55, then 0.66 at 0.62, 0.53 at 0.7, 0.32 at 0.8, 0.12 at 0.9, 0 at 1. The basket's base ends at 0.62.
+    - A first formula came out lighter than that everywhere (0.60 in the middle, 0.24 at 0.7), so that texture was discarded.
+    - The formula in the file now keeps the V0.3 falloff and adds to it: about 0.85 in the middle, 0.76 at 0.55, a contact ring of about 0.87 just outside the base, and from 0.7 outward the same as V0.3. These constants have not been compiled or run yet.
+    - **To finish:** refresh, run the menu item, run `marker` and look at `Temp/SimTest-marker.png` (the basket is in view), adjust the three numbers in `ShadowGenerator.Darkness` if the ring is too strong or too faint on the grey sim floor, run `floor-edge`, then tick this step.
 - [ ] 4. **Onboarding:** a first-run "how to play" screen and a clear-space safety reminder.
   - **Design notes:**
     - A panel under `Safe Area`, shown until "Got it" is tapped, remembered with a PlayerPrefs flag. It covers the Start button.
