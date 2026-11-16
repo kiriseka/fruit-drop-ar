@@ -86,6 +86,9 @@ public class FloorBasketFollower : MonoBehaviour
 
     const int k_MaxPointSamples = 500;
 
+    // How many point IDs are remembered as already sampled before they are all forgotten.
+    const int k_MaxSampledPointIds = 5000;
+
     // Height band, in meters, that feature points must share to count as one surface.
     const float k_FloorClusterHeight = 0.1f;
 
@@ -261,6 +264,12 @@ public class FloorBasketFollower : MonoBehaviour
         floorHeight = 0f;
         if (m_PointCloudManager == null)
             return false;
+
+        // In a long session new points keep arriving, and remembering every one would grow without end.
+        // Forgetting them all now and then costs little: the points still in view are sampled once more,
+        // and the samples themselves are a fixed-size ring that the newest ones simply overwrite.
+        if (m_SampledPointIds.Count > k_MaxSampledPointIds)
+            m_SampledPointIds.Clear();
 
         float cameraHeight = m_Camera.transform.position.y;
         float minHeight = cameraHeight - m_MaxFloorDepth;
