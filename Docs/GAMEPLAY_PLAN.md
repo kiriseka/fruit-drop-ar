@@ -196,7 +196,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 ## V0.6 Variety and difficulty
 
-- [ ] 1. **FruitType assets for all six types:**
+- [x] 1. **FruitType assets for all six types:**
 
   | Fruit | Points | Fall speed | Share of spawns | Note |
   |---|---|---|---|---|
@@ -208,6 +208,12 @@ This file is the single source of truth for the gameplay phase. Any session that
   | Rotten | −20 and −1 life when caught | 0.9 m/s | 2 %, rising to 10 % by 120 s | a missed rotten fruit costs nothing |
 
   - new prefabs, plus golden and rotten materials
+  - **Done.** Prefabs `GreenApple`, `Orange`, `Lemon`, `GoldenApple` and `RottenApple` are copies of `RedApple.prefab` with the basket's own shapes at ×1.5 (the orange and lemon have no stem). Data assets with the same names are in `Assets/Data/`, with the table's values.
+    - Sizes (width × height × depth) and FruitType radius, measured as pivot to the lowest point:
+      green apple 0.105 × 0.110 × 0.105 m, 0.048; orange 0.117 m ball, 0.058; lemon 0.078 × 0.078 × 0.112 m, 0.039; golden apple 0.113 × 0.118 × 0.113 m, 0.052; rotten apple 0.113 × 0.100 × 0.113 m, 0.044. The red apple keeps its 0.056.
+    - `Fruit_Golden`: gold FFC21A, smoothness 0.85, a light glow. `Fruit_Rotten`: olive brown, matte. The rotten apple is also flatter and has four dark spots (`Fruit_RottenSpot`), so it differs in more than colour.
+    - `FruitType` gained a `color` field, set from each material, for the V0.7 splash.
+    - **Check:** a side-by-side render of the six prefabs shows each one clearly different; no colliders on any; 0 compile errors. The spawner still drops only red apples until step 2.
 - [ ] 2. **Weighted random pick**, with the rising rotten share.
 - [ ] 3. **`DifficultyCurve`:**
   - interval(t) = max(0.7, 2.0 − 0.015t)

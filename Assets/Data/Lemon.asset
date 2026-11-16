@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 735f15fb7ad549f44bbe798389f273c3, type: 3}
+  m_Name: Lemon
+  m_EditorClassIdentifier: Assembly-CSharp::FruitType
+  m_DisplayName: Lemon
+  m_Prefab: {fileID: 7131675789582433573, guid: 7c56e80c6ceaa714d82351f3fcce4fcd, type: 3}
+  m_Color: {r: 1, g: 0.88, b: 0.14999998, a: 1}
+  m_Radius: 0.039
+  m_Points: 30
+  m_FallSpeed: 1.2
+  m_SpawnWeight: 10
+  m_StreakBonus: 0
+  m_IsHazard: 0

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 735f15fb7ad549f44bbe798389f273c3, type: 3}
+  m_Name: Orange
+  m_EditorClassIdentifier: Assembly-CSharp::FruitType
+  m_DisplayName: Orange
+  m_Prefab: {fileID: 7131675789582433573, guid: 9ef567668af914c49889c83cabb82848, type: 3}
+  m_Color: {r: 1, g: 0.54999995, b: 0.049999982, a: 1}
+  m_Radius: 0.058
+  m_Points: 20
+  m_FallSpeed: 1
+  m_SpawnWeight: 20
+  m_StreakBonus: 0
+  m_IsHazard: 0

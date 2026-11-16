@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 735f15fb7ad549f44bbe798389f273c3, type: 3}
+  m_Name: GreenApple
+  m_EditorClassIdentifier: Assembly-CSharp::FruitType
+  m_DisplayName: Green apple
+  m_Prefab: {fileID: 7131675789582433573, guid: 657fa45344d6e35489511527c5da87ba, type: 3}
+  m_Color: {r: 0.45, g: 0.78, b: 0.19999996, a: 1}
+  m_Radius: 0.048
+  m_Points: 15
+  m_FallSpeed: 0.9
+  m_SpawnWeight: 25
+  m_StreakBonus: 0
+  m_IsHazard: 0

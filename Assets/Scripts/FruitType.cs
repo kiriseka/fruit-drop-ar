@@ -16,6 +16,10 @@ public class FruitType : ScriptableObject
     GameObject m_Prefab;
 
     [SerializeField]
+    [Tooltip("Main colour of the fruit, for effects that match it, such as the splash when it hits the floor.")]
+    Color m_Color = Color.white;
+
+    [SerializeField]
     [Tooltip("Radius of the fruit, in meters. Decides when it touches the floor.")]
     float m_Radius = 0.055f;
 
@@ -41,6 +45,7 @@ public class FruitType : ScriptableObject
 
     public string displayName => m_DisplayName;
     public GameObject prefab => m_Prefab;
+    public Color color => m_Color;
     public float radius => m_Radius;
     public int points => m_Points;
     public float fallSpeed => m_FallSpeed;
