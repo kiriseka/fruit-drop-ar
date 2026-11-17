@@ -6,10 +6,10 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** v1.0 release candidate, step 1 (full regression with `Fruit Drop > Sim > All` and `Fruit Drop > Run Tests`). For step 2 set the version name to 1.0.0 and the Android version code to 10 first; `BuildTools` has no iOS export menu item yet, so add one that writes to a new folder under `Builds/`.
+- **Next step:** none until the user has tested on a phone. The run's goal is reached: V0.6, V0.7 and V0.8 are done and `v1.0-rc1` is published. What follows is the "V1.0 (needs the user)" section at the end of this file.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
-  - Phone test of V0.8 (`Builds/V0.8.apk`, also on the v0.8 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It installs as a new app, "Fruit Drop AR". Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles), the V0.7 ones, and V0.8's: the resume countdown, any pauses that come by themselves, and a 15-minute session with profiling.
+  - Phone test of the release candidate (`Builds/V1.0-rc1.apk`, also on the v1.0-rc1 GitHub pre-release) on the Realme 7, with the 11-point checklist in its release notes. It is the "Fruit Drop AR" app (new app ID since V0.8). Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles), the V0.7 ones, and V0.8's: the resume countdown, any pauses that come by themselves, and a 15-minute session with profiling.
   - V0.7 points that only a person can judge: how the five sounds sound (also as WAVs in `Assets/Audio/`), whether the 40 ms vibration is felt, whether the sparkles and splash are large enough, and the shadow on a real floor.
   - A playtest with 3–5 players.
 - **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
@@ -369,9 +369,16 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 ## v1.0 release candidate
 
-- [ ] 1. **Full regression:** every sim scenario and all automated tests, with 0 console errors.
-- [ ] 2. **Builds:** `Builds/V1.0-rc1.apk`, and the iOS Xcode project exported to a new folder and zip. The v0.3.1 export in `Builds/` stays as it is.
-- [ ] 3. **Tag `v1.0-rc1`** and a pre-release with both files and one phone checklist covering V0.5 to V0.8.
+- [x] 1. **Full regression:** every sim scenario and all automated tests, with 0 console errors.
+  - **Done.** `Fruit Drop > Sim > All`: 18 scenarios run, 18 finished, no FAIL line, 0 errors logged. Floor y 0.005–0.006; `score-round` 205 as worked by hand; `hud` 90; `best` loads 205; sounds, effects, onboarding, pause and resume, the floor rule and the memory bound as in their steps; `long-round` on the curve with 49 doubles (closest pair 0.50 m, shortest landing gap 0.70 s) and 0 / 1 / 3 / 6 / 5 / 3 misses in its six parts.
+  - `Fruit Drop > Run Tests`: EditMode 36 passed, 0 failed; PlayMode 1 passed, 0 failed.
+- [x] 2. **Builds:** `Builds/V1.0-rc1.apk`, and the iOS Xcode project exported to a new folder and zip. The v0.3.1 export in `Builds/` stays as it is.
+  - **Done.** Version name 1.0.0, Android version code 10, iOS build number 10.
+  - `Builds/V1.0-rc1.apk`, 35.1 MB: 0 errors, 347 warnings, 2.1 min. `aapt` reads package `com.kiriseka.fruitdropar`, version 1.0.0 (10), label "Fruit Drop AR".
+  - `Builds/iOS-v1.0-rc1` (Xcode project, bundle ID `com.kiriseka.fruitdropar`): 0 errors, 379 warnings, 2.9 min; zipped as `Builds/FruitDropAR-iOS-Xcode-v1.0-rc1.zip`. It has not been built in Xcode or run on a device. The editor went back to the Android platform afterwards.
+  - New menu item **Fruit Drop > Build Android APK and Xcode Project** (`BuildTools.xcodePath` sets the folder); `Temp/Build.log` ends with "Builds done".
+- [x] 3. **Tag `v1.0-rc1`** and a pre-release with both files and one phone checklist covering V0.5 to V0.8.
+  - **Done.** `gameplay` pushed, tagged `v1.0-rc1`, pre-release published with the APK, the Xcode zip and the notes from `Builds/V1.0-rc1-release-notes.md` (not in git).
 
 ## V1.0 (needs the user)
 

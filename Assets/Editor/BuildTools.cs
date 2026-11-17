@@ -23,6 +23,69 @@ public static class BuildTools
         set => SessionState.SetString(k_ApkPathKey, value);
     }
 
+    const string k_XcodePathKey = "BuildTools.XcodePath";
+    const string k_DefaultXcodePath = "Builds/iOS-Latest";
+
+    /// <summary>
+    /// Folder the next Xcode project goes to, such as Builds/iOS-v1.0-rc1. Kept for the editor session only.
+    /// </summary>
+    public static string xcodePath
+    {
+        get => SessionState.GetString(k_XcodePathKey, k_DefaultXcodePath);
+        set => SessionState.SetString(k_XcodePathKey, value);
+    }
+
+    /// <summary>
+    /// Builds the APK, then exports the Xcode project for iOS, then goes back to the Android platform so the
+    /// editor is left as it was. Temp/Build.log ends with "Builds done".
+    /// </summary>
+    [MenuItem("Fruit Drop/Build Android APK and Xcode Project")]
+    static void BuildBoth()
+    {
+        BuildAndroidApk();
+
+        // Queued after the APK build, which runs on the next update.
+        EditorApplication.CallbackFunction export = null;
+        export = () =>
+        {
+            EditorApplication.update -= export;
+            ExportXcodeProject();
+            File.AppendAllText(k_LogPath, "Builds done\n");
+        };
+        EditorApplication.update += export;
+    }
+
+    static void ExportXcodeProject()
+    {
+        if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.iOS, BuildTarget.iOS))
+        {
+            File.AppendAllText(k_LogPath, "Xcode: skipped, iOS build support is not installed\n");
+            return;
+        }
+
+        var scenes = new List<string>();
+        foreach (var scene in EditorBuildSettings.scenes)
+        {
+            if (scene.enabled)
+                scenes.Add(scene.path);
+        }
+
+        string path = xcodePath;
+        File.AppendAllText(k_LogPath, $"Exporting the Xcode project to {path}\n");
+        var summary = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = scenes.ToArray(),
+            locationPathName = path,
+            target = BuildTarget.iOS,
+            options = BuildOptions.None,
+        }).summary;
+        File.AppendAllText(k_LogPath, $"Xcode: {summary.result}: {summary.totalErrors} errors, {summary.totalWarnings} warnings, {summary.totalTime.TotalMinutes:F1} min\n");
+
+        // Building for iOS switches the editor to iOS; the sim tests and the APK need Android.
+        bool back = EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+        File.AppendAllText(k_LogPath, $"Back on Android: {back}\n");
+    }
+
     [MenuItem("Fruit Drop/Build Android APK")]
     static void BuildAndroidApk()
     {
