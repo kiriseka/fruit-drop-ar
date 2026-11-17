@@ -6,11 +6,10 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V0.8 step 5 (version end): build `Builds/V0.8.apk`, tag `v0.8`, publish the pre-release with `Builds/V0.8-release-notes.md` (already written, not in git). Then the v1.0 release candidate.
-- **Paused for usage:** the usage limit was reached after V0.8 step 4. No resume task is scheduled; the earlier one (`fruitdrop-resume-20261117-0220`) is disabled. Remove this line when work resumes.
+- **Next step:** v1.0 release candidate, step 1 (full regression with `Fruit Drop > Sim > All` and `Fruit Drop > Run Tests`). For step 2 set the version name to 1.0.0 and the Android version code to 10 first; `BuildTools` has no iOS export menu item yet, so add one that writes to a new folder under `Builds/`.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
-  - Phone test of V0.7 (`Builds/V0.7.apk`, also on the v0.7 GitHub pre-release) on the Realme 7, with the checklist in its release notes. Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles) and the V0.7 ones.
+  - Phone test of V0.8 (`Builds/V0.8.apk`, also on the v0.8 GitHub pre-release) on the Realme 7, with the checklist in its release notes. It installs as a new app, "Fruit Drop AR". Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles), the V0.7 ones, and V0.8's: the resume countdown, any pauses that come by themselves, and a 15-minute session with profiling.
   - V0.7 points that only a person can judge: how the five sounds sound (also as WAVs in `Assets/Audio/`), whether the 40 ms vibration is felt, whether the sparkles and splash are large enough, and the shadow on a real floor.
   - A playtest with 3–5 players.
 - **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
@@ -364,7 +363,9 @@ This file is the single source of truth for the gameplay phase. Any session that
   - `Assets/Tests/PlayMode` (1 test, 4.0 s): in XR Simulation the plane floor is found, its height is 0 ± 0.03 m, the basket stands on it, a point 10 m away is not floor, and clamping pulls it back and is stable. The Test Runner drives XR Simulation without trouble, so no fallback was needed; the `floor-edge` scenario stays as the more detailed check of the edge distances.
   - **Run them** with **Fruit Drop > Run Tests** (EditMode, then PlayMode); the result goes to `Temp/TestResults.log`, ending "Tests done". They also show in the Test Runner window.
   - **Result:** EditMode 36 passed, 0 failed; PlayMode 1 passed, 0 failed. `score-round` and `best` still pass through the menu-driven driver after the assembly split.
-- [ ] 5. **Version end:** V0.8. Realme 7 profiling and a 15-minute session go under "Waiting on user".
+- [x] 5. **Version end:** V0.8. Realme 7 profiling and a 15-minute session go under "Waiting on user".
+  - **Done.** `Builds/V0.8.apk`, 35.1 MB: 0 errors, 350 warnings, built in 5.0 min. `aapt dump badging` reads package `com.kiriseka.fruitdropar`, version name 0.8.0, version code 8, label "Fruit Drop AR", and the CAMERA, INTERNET and VIBRATE permissions. `gameplay` pushed, tagged `v0.8`, and published as a GitHub pre-release with the notes and phone checklist from `Builds/V0.8-release-notes.md` (not in git).
+  - The full 18-scenario regression last ran after step 3. After step 4's assembly split, the automated tests and the `score-round` and `best` scenarios were run; the full regression is the first step of the release candidate.
 
 ## v1.0 release candidate
 
