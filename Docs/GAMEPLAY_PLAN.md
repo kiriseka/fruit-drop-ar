@@ -6,10 +6,10 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** none until the user has tested on a phone. The run's goal is reached: V0.6, V0.7 and V0.8 are done and `v1.0-rc1` is published. What follows is the "V1.0 (needs the user)" section at the end of this file.
+- **Next step:** none until the user has tested on a phone. The run's goal is reached: V0.6, V0.7 and V0.8 are done, and `v1.0-rc2` (rc1 plus two portrait layout fixes) is published. What follows is the "V1.0 (needs the user)" section at the end of this file.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
-  - Phone test of the release candidate (`Builds/V1.0-rc1.apk`, also on the v1.0-rc1 GitHub pre-release) on the Realme 7, with the 11-point checklist in its release notes. It is the "Fruit Drop AR" app (new app ID since V0.8). Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles), the V0.7 ones, and V0.8's: the resume countdown, any pauses that come by themselves, and a 15-minute session with profiling.
+  - Phone test of release candidate 2 (`Builds/V1.0-rc2.apk`, also on the v1.0-rc2 GitHub pre-release; it replaces rc1) on the Realme 7, with the 11-point checklist in its release notes. It is the "Fruit Drop AR" app (new app ID since V0.8). Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles), the V0.7 ones, and V0.8's: the resume countdown, any pauses that come by themselves, and a 15-minute session with profiling.
   - V0.7 points that only a person can judge: how the five sounds sound (also as WAVs in `Assets/Audio/`), whether the 40 ms vibration is felt, whether the sparkles and splash are large enough, and the shadow on a real floor.
   - A playtest with 3–5 players.
 - **Sim workflow:** Unity_RunCommand refuses code that enters Play mode or builds. Run a scenario with Unity_ManageMenuItem on `Fruit Drop/Sim/<scenario>` (or `Fruit Drop/Sim/All` for the whole regression), then wait for a line "All done" in `Temp/SimTest.log`. A menu item that is new needs one `AssetDatabase.Refresh()` through Unity_RunCommand first. For builds, see V0.5 step 5.
@@ -379,6 +379,18 @@ This file is the single source of truth for the gameplay phase. Any session that
   - New menu item **Fruit Drop > Build Android APK and Xcode Project** (`BuildTools.xcodePath` sets the folder); `Temp/Build.log` ends with "Builds done".
 - [x] 3. **Tag `v1.0-rc1`** and a pre-release with both files and one phone checklist covering V0.5 to V0.8.
   - **Done.** `gameplay` pushed, tagged `v1.0-rc1`, pre-release published with the APK, the Xcode zip and the notes from `Builds/V1.0-rc1-release-notes.md` (not in git).
+
+- [x] 4. **Portrait check before the phone test.** Every capture until rc1 came from the editor's wide Game view, but the game runs in fixed portrait.
+  - New sim scenario `portrait`: the Game view is set to the Realme 7's 1080 × 2400 (and put back afterwards), the debug lines are off as on a phone (`ARStatusText.showDebugInEditor`), and the top 96 px are kept clear as for its camera hole. It captures the first-run panel, Ready, the countdown, a round and Game Over (`Temp/SimTest-portrait-*.png`) and logs where each HUD part is, whether it is inside the safe area, whether its text fits, and which parts overlap.
+  - **Found and fixed:**
+    - The "How to play" card half covered the Start button, whose label showed through under "Got it", and a quick second tap on "Got it" could land on Start. The card now ends above the Start button (anchors 0.20–0.88 of the safe area); Start stays visible, dimmed, under the panel.
+    - The round bar covered the bottom 50 px of the hint band, leaving the hint pressed against the bar. It now starts 10 units under the band (`Round Bar` y −175 → −230).
+  - **After the fixes:** all parts inside the safe area, all texts fit, the only overlaps are the card with its own button and two Game Over rectangles whose text does not touch.
+  - The driver had a bug from adding this scenario (the "How to play" flag was set again right after being cleared for `onboarding`); fixed before the regression below.
+- [x] 5. **Release candidate 2** with the two layout fixes: full regression, automated tests, version code 11, APK and Xcode export, tag `v1.0-rc2`, pre-release.
+  - **Done.** `Fruit Drop > Sim > All`: 19 scenarios run, 19 finished, no FAIL line, no text that does not fit, 0 errors logged; `score-round` 205 and `hud` 90 as worked by hand. `Fruit Drop > Run Tests`: EditMode 36 passed, PlayMode 1 passed.
+  - `Builds/V1.0-rc2.apk`, 35.1 MB: 0 errors, 350 warnings, 3.8 min; `aapt` reads `com.kiriseka.fruitdropar`, version 1.0.0 (11), "Fruit Drop AR". Xcode project `Builds/iOS-v1.0-rc2` (0 errors, 2.0 min, bundle ID `com.kiriseka.fruitdropar`, build number 11), zipped as `Builds/FruitDropAR-iOS-Xcode-v1.0-rc2.zip`.
+  - `gameplay` pushed, tagged `v1.0-rc2`, pre-release published with both files and `Builds/V1.0-rc2-release-notes.md` (not in git). rc1 stays as it was; its tag is locked.
 
 ## V1.0 (needs the user)
 

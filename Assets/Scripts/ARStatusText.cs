@@ -36,6 +36,11 @@ public class ARStatusText : MonoBehaviour
     [Tooltip("Also show session state, feature point and plane counts, and the phone's height above the floor under the hint. Always on in the Editor.")]
     bool m_ShowDebug;
 
+    /// <summary>
+    /// Development switch: false hides the debug lines in the Editor too, so a capture shows what a phone shows.
+    /// </summary>
+    public static bool showDebugInEditor = true;
+
     [SerializeField]
     [Tooltip("Seconds between text refreshes.")]
     float m_UpdateInterval = 0.25f;
@@ -54,7 +59,7 @@ public class ARStatusText : MonoBehaviour
         var floorSource = m_Basket != null ? m_Basket.floorSource : FloorBasketFollower.FloorSource.None;
         string text = GetHint(showing, floorSource, m_Game);
 
-        if (m_ShowDebug || Application.isEditor)
+        if (m_ShowDebug || (Application.isEditor && showDebugInEditor))
         {
             // Feature points are what ARCore builds planes from; zero means the camera sees nothing trackable.
             int pointCount = 0;

@@ -69,7 +69,9 @@ public class HowToPlayPanel : MonoBehaviour
         m_Panel.transform.SetAsLastSibling();
         m_Panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
 
-        var card = NewRect("Card", m_Panel.transform, new Vector2(0.07f, 0.12f), new Vector2(0.93f, 0.88f));
+        // The card ends above the Start button, so the button is not half covered behind it, and a quick second
+        // tap on "Got it" does not land on Start. Its top stays under the hint band.
+        var card = NewRect("Card", m_Panel.transform, new Vector2(0.07f, 0.20f), new Vector2(0.93f, 0.88f));
         card.AddComponent<Image>().color = m_CardColor;
 
         NewText("Title", card.transform, new Vector2(0.06f, 0.82f), new Vector2(0.94f, 0.96f), "How to play", 96f, m_AccentColor, TextAlignmentOptions.Center);

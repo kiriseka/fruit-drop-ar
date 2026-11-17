@@ -24,9 +24,22 @@ public static class SimTestDriver
     const string k_QueueEnd = "#end";
     const string k_BestScoreKey = "FruitDropAR.HighScore";
     const string k_SeenHowToPlayKey = "FruitDropAR.SeenHowToPlay";
+    const string k_RestoreSizeKey = "SimTestDriver.RestoreGameViewSize";
+
+    static void RestoreGameViewSize()
+    {
+        string size = SessionState.GetString(k_RestoreSizeKey, "");
+        if (size == "")
+            return;
+
+        SessionState.EraseString(k_RestoreSizeKey);
+        var parts = size.Split('x');
+        if (parts.Length == 2 && uint.TryParse(parts[0], out uint width) && uint.TryParse(parts[1], out uint height) && width > 0 && height > 0)
+            PlayModeWindow.SetCustomRenderingResolution(width, height, "Editor");
+    }
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -40,6 +53,8 @@ public static class SimTestDriver
         {
             if (state == PlayModeStateChange.EnteredEditMode)
             {
+                RestoreGameViewSize();
+
                 // Not from inside the callback: Play mode cannot be entered again while it is still being left.
                 OnNextUpdate(NextInQueue);
                 return;
@@ -90,6 +105,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/long-round")] static void MenuLongRound() => RunQueue("long-round");
     [MenuItem("Fruit Drop/Sim/feedback")] static void MenuFeedback() => RunQueue("feedback");
     [MenuItem("Fruit Drop/Sim/onboarding, then again")] static void MenuOnboarding() => RunQueue("onboarding,onboarding-again");
+    [MenuItem("Fruit Drop/Sim/portrait")] static void MenuPortrait() => RunQueue("portrait");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -156,12 +172,20 @@ public static class SimTestDriver
         else if (scenario == "score-round")
             PlayerPrefs.SetInt(k_BestScoreKey, 40);
 
-        // The first-run panel covers the Start button, so it is marked as read for every scenario but the one
-        // that tests it. onboarding-again runs right after onboarding and finds what that one left.
-        if (scenario == "onboarding")
+        // The first-run panel covers the Start button, so it is marked as read for every scenario but the ones
+        // that show it. onboarding-again runs right after onboarding and finds what that one left.
+        if (scenario == "onboarding" || scenario == "portrait")
             PlayerPrefs.DeleteKey(k_SeenHowToPlayKey);
         else if (scenario != "onboarding-again")
             PlayerPrefs.SetInt(k_SeenHowToPlayKey, 1);
+
+        // The portrait scenario plays on a Realme 7-sized Game view; the size it had is put back afterwards.
+        if (scenario == "portrait")
+        {
+            PlayModeWindow.GetRenderingResolution(out uint width, out uint height);
+            SessionState.SetString(k_RestoreSizeKey, $"{width}x{height}");
+            PlayModeWindow.SetCustomRenderingResolution(1080, 2400, "Realme 7");
+        }
 
         PlayerPrefs.Save();
         EditorApplication.EnterPlaymode();
@@ -218,6 +242,7 @@ public static class SimTestDriver
             "onboarding" => Onboarding(true),
             "onboarding-again" => Onboarding(false),
             "point-memory" => PointMemory(),
+            "portrait" => Portrait(),
             _ => null,
         };
 
@@ -1517,6 +1542,155 @@ public static class SimTestDriver
         }
 
         Log($"Floor still {follower.floorSource}, basket shown {follower.isBasketVisible}");
+    }
+
+    // On a Screen Space Overlay canvas, world space is screen pixels.
+    static Rect ScreenRect(RectTransform rect)
+    {
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        return Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
+    }
+
+    /// <summary>
+    /// Logs where each named UI part is on screen, flags any that reach outside <paramref name="safe"/>, and
+    /// notes any two that overlap. Parts that are not showing are skipped.
+    /// </summary>
+    static void CheckLayout(string when, Rect safe, params string[] names)
+    {
+        var shown = new List<(string name, Rect rect)>();
+        foreach (string name in names)
+        {
+            var transform = FindDeep(name) as RectTransform;
+            if (transform == null || !transform.gameObject.activeInHierarchy)
+                continue;
+
+            var rect = ScreenRect(transform);
+            bool inside = rect.xMin >= safe.xMin - 0.5f && rect.yMin >= safe.yMin - 0.5f && rect.xMax <= safe.xMax + 0.5f && rect.yMax <= safe.yMax + 0.5f;
+            string text = "";
+            var label = transform.GetComponentInChildren<TMPro.TMP_Text>();
+            if (label != null && label.gameObject.activeInHierarchy && label.text.Length > 0)
+            {
+                // How much room the text needs against the room its box gives it.
+                var needed = label.GetRenderedValues(true);
+                var box = label.rectTransform.rect.size;
+                bool fits = needed.x <= box.x + 1f && needed.y <= box.y + 1f;
+                text = $", text {needed.x:F0}x{needed.y:F0} in {box.x:F0}x{box.y:F0} at size {label.fontSize:F0}{(fits ? "" : " DOES NOT FIT")}";
+            }
+
+            Log($"  {when}: {name} x {rect.xMin:F0}-{rect.xMax:F0}, y {rect.yMin:F0}-{rect.yMax:F0} px{(inside ? "" : " FAIL: outside the safe area")}{text}");
+            shown.Add((name, rect));
+        }
+
+        for (int i = 0; i < shown.Count; i++)
+        {
+            for (int j = i + 1; j < shown.Count; j++)
+            {
+                if (!shown[i].rect.Overlaps(shown[j].rect))
+                    continue;
+
+                float height = Mathf.Min(shown[i].rect.yMax, shown[j].rect.yMax) - Mathf.Max(shown[i].rect.yMin, shown[j].rect.yMin);
+                Log($"  {when}: {shown[i].name} and {shown[j].name} overlap by {height:F0} px");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Before the phone test: the game as a Realme 7 shows it, 1080 x 2400 in portrait, with the debug lines off
+    /// as on a phone and the top 96 px kept clear as for its camera hole. Captures the first-run panel, Ready,
+    /// the countdown, a round and Game Over, and checks that each part of the HUD is on screen, inside the safe
+    /// area, and clear of the others.
+    /// </summary>
+    static IEnumerator<float> Portrait()
+    {
+        const float cameraHole = 96f;
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        yield return 0.5f;
+        Log($"Game view {Screen.width}x{Screen.height}");
+        if (Screen.width != 1080 || Screen.height != 2400)
+        {
+            Log("FAIL: the Game view is not 1080x2400");
+            yield break;
+        }
+
+        ARStatusText.showDebugInEditor = false;
+
+        // What SafeAreaFitter would set on a phone whose camera hole takes the top 96 px.
+        var safeAreaRect = Object.FindAnyObjectByType<SafeAreaFitter>().GetComponent<RectTransform>();
+        safeAreaRect.anchorMax = new Vector2(1f, 1f - cameraHole / Screen.height);
+        var safe = new Rect(0f, 0f, Screen.width, Screen.height - cameraHole);
+        string[] parts = { "Status Background", "Round Bar", "Countdown Text", "Start Button", "Game Over Panel", "Card", "Got It Button" };
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        float readyWait = Time.time;
+        while (game.state != GameStateManager.GameState.Ready && Time.time - readyWait < 10f)
+            yield return 0.25f;
+
+        yield return 0.5f;
+        CheckLayout("first run", safe, parts);
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-1-howto.png"));
+        yield return 0.3f;
+
+        FindButton("Got It Button").onClick.Invoke();
+        yield return 0.5f;
+        CheckLayout("ready", safe, parts);
+        Log($"  ready: hint \"{Hint()}\"");
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-2-ready.png"));
+        yield return 0.3f;
+
+        // Red apples only, so the combo builds and the bar shows a multiplier.
+        spawner.QueueTypes(Repeat("RedApple", 40));
+        FindButton("Start Button").onClick.Invoke();
+        yield return 0.5f;
+        CheckLayout("countdown", safe, parts);
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-3-countdown.png"));
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        // Follow the fruit for a while, then capture with one low in view above its ring.
+        bool captured = false;
+        float playStart = Time.time;
+        while (!captured && Time.time - playStart < 30f)
+        {
+            var next = NextToLand(spawner, follower, true);
+            if (next != null)
+            {
+                var spot = next.transform.position;
+                spot.y = follower.floorHeight;
+                LookAt(spot);
+                if (Time.time - playStart > 14f && next.transform.position.y < follower.floorHeight + 0.6f)
+                {
+                    CheckLayout("playing", safe, parts);
+                    ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-4-playing.png"));
+                    captured = true;
+                }
+            }
+
+            yield return 0f;
+        }
+
+        yield return 0.3f;
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        float overStart = Time.time;
+        while (game.state != GameStateManager.GameState.GameOver && Time.time - overStart < 30f)
+            yield return 0.1f;
+
+        yield return 0.8f;
+        CheckLayout("game over", safe, parts);
+        CheckLayout("game over panel", safe, "Title", "Score Label", "Final Score Text", "Best Text", "Restart Button");
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-5-gameover.png"));
+        yield return 0.3f;
+        ARStatusText.showDebugInEditor = true;
     }
 
     // Saves a Game view capture once play time reaches the given moment.
