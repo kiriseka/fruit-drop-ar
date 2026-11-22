@@ -32,6 +32,8 @@ public class ScoreManager : MonoBehaviour
     int m_Lives;
     int m_HighScore;
     int m_HighScoreAtRoundStart;
+    int m_CaughtCount;
+    int m_BestStreak;
 
     /// <summary>
     /// Called whenever the score, streak or lives change.
@@ -53,6 +55,16 @@ public class ScoreManager : MonoBehaviour
     public int streak => m_Streak;
     public int lives => m_Lives;
     public int highScore => m_HighScore;
+
+    /// <summary>
+    /// Good fruit caught this round. Fruit to avoid does not count.
+    /// </summary>
+    public int caughtCount => m_CaughtCount;
+
+    /// <summary>
+    /// Longest streak this round, golden apples' extra catches included.
+    /// </summary>
+    public int bestStreak => m_BestStreak;
 
     /// <summary>
     /// True once this round has beaten the best score from before it started.
@@ -92,6 +104,8 @@ public class ScoreManager : MonoBehaviour
         m_Score = 0;
         m_Streak = 0;
         m_Lives = m_StartingLives;
+        m_CaughtCount = 0;
+        m_BestStreak = 0;
         m_HighScoreAtRoundStart = m_HighScore;
         changed?.Invoke();
     }
@@ -124,6 +138,8 @@ public class ScoreManager : MonoBehaviour
         {
             m_Score += fruitType.points * multiplier;
             m_Streak += 1 + fruitType.streakBonus;
+            m_CaughtCount++;
+            m_BestStreak = Mathf.Max(m_BestStreak, m_Streak);
         }
         else
         {

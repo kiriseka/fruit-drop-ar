@@ -39,6 +39,14 @@ public class GameHUD : MonoBehaviour
     float m_LostHeartAlpha = 0.25f;
 
     [SerializeField]
+    [Tooltip("Optional. Round stats on the Game Over panel: fruit caught, best streak and how long the round lasted.")]
+    TMP_Text m_StatsText;
+
+    [SerializeField]
+    [Tooltip("Optional. Gives how long the round lasted, for the stats.")]
+    FruitSpawner m_Spawner;
+
+    [SerializeField]
     [Tooltip("Seconds the score takes to count up, or down, to a new value.")]
     float m_ScoreCountSeconds = 0.3f;
 
@@ -265,5 +273,12 @@ public class GameHUD : MonoBehaviour
 
         if (m_BestScoreText != null)
             m_BestScoreText.text = m_Score.isNewHighScore ? "New best!" : $"Best {m_Score.highScore}";
+
+        if (m_StatsText != null)
+        {
+            // The clock of the round stops while it is paused, so this is the time actually played.
+            int seconds = m_Spawner != null ? Mathf.FloorToInt(m_Spawner.roundTime) : 0;
+            m_StatsText.text = $"{m_Score.caughtCount} caught · best streak {m_Score.bestStreak} · {seconds / 60}:{seconds % 60:00}";
+        }
     }
 }

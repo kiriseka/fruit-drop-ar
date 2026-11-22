@@ -181,9 +181,39 @@ public class ScoreManagerTests
         m_Score.Apply(m_Red, false);        // 0 lives
         Assert.AreEqual(205, m_Score.score);
         Assert.AreEqual(0, m_Score.lives);
+
+        // The Game Over stats: 8 good fruit (the rotten catch does not count), best streak 7 before the rotten
+        // apple reset it.
+        Assert.AreEqual(8, m_Score.caughtCount);
+        Assert.AreEqual(7, m_Score.bestStreak);
         Object.DestroyImmediate(green);
         Object.DestroyImmediate(orange);
         Object.DestroyImmediate(lemon);
+    }
+
+    [Test]
+    public void EachCatch_IsReportedWithWhatItChangedTheScoreBy()
+    {
+        var reported = new System.Collections.Generic.List<int>();
+        m_Score.fruitScored += (fruitType, points) => reported.Add(points);
+        Catch(m_Red, 5);
+        Catch(m_Red);
+        m_Score.Apply(m_Red, false);
+        Catch(m_Rotten);
+        m_Score.Apply(m_Rotten, false);
+
+        // Five at x1, one at x2, nothing for the miss, -20 for the rotten catch, nothing for a rotten fall.
+        CollectionAssert.AreEqual(new[] { 10, 10, 10, 10, 10, 20, -20 }, reported);
+    }
+
+    [Test]
+    public void ARottenCatchNearZero_IsReportedAsWhatItReallyTook()
+    {
+        int reported = 0;
+        m_Score.fruitScored += (fruitType, points) => reported = points;
+        Catch(m_Red);
+        Catch(m_Rotten);
+        Assert.AreEqual(-10, reported);
     }
 
     [Test]
@@ -197,5 +227,7 @@ public class ScoreManagerTests
         Assert.AreEqual(3, m_Score.lives);
         Assert.AreEqual(50, m_Score.highScore);
         Assert.IsFalse(m_Score.isNewHighScore);
+        Assert.AreEqual(0, m_Score.caughtCount);
+        Assert.AreEqual(0, m_Score.bestStreak);
     }
 }

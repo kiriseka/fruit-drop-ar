@@ -39,7 +39,7 @@ public static class SimTestDriver
     }
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,hud-feedback,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,hud-feedback,screens,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -109,6 +109,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/mobile")] static void MenuMobile() => RunQueue("mobile");
     [MenuItem("Fruit Drop/Sim/pause-menu, then again")] static void MenuPauseMenu() => RunQueue("pause-menu,pause-menu-again");
     [MenuItem("Fruit Drop/Sim/hud-feedback")] static void MenuHudFeedback() => RunQueue("hud-feedback");
+    [MenuItem("Fruit Drop/Sim/screens")] static void MenuScreens() => RunQueue("screens");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -172,7 +173,7 @@ public static class SimTestDriver
         // line get a known one here: none for hud, 40 for score-round. best then finds what score-round left.
         if (scenario == "hud")
             PlayerPrefs.DeleteKey(k_BestScoreKey);
-        else if (scenario == "score-round")
+        else if (scenario == "score-round" || scenario == "screens")
             PlayerPrefs.SetInt(k_BestScoreKey, 40);
 
         // The first-run panel covers the Start button, so it is marked as read for every scenario but the ones
@@ -182,8 +183,8 @@ public static class SimTestDriver
         else if (scenario != "onboarding-again")
             PlayerPrefs.SetInt(k_SeenHowToPlayKey, 1);
 
-        // The portrait scenario plays on a Realme 7-sized Game view; the size it had is put back afterwards.
-        if (scenario == "portrait")
+        // The portrait scenarios play on a Realme 7-sized Game view; the size it had is put back afterwards.
+        if (scenario == "portrait" || scenario == "screens")
         {
             PlayModeWindow.GetRenderingResolution(out uint width, out uint height);
             SessionState.SetString(k_RestoreSizeKey, $"{width}x{height}");
@@ -257,6 +258,7 @@ public static class SimTestDriver
             "pause-menu" => PauseMenuRound(),
             "pause-menu-again" => PauseMenuAgain(),
             "hud-feedback" => HudFeedback(),
+            "screens" => Screens(),
             _ => null,
         };
 
@@ -1424,6 +1426,10 @@ public static class SimTestDriver
         Transform basketBody = null;
         void EffectPlayed(CatchEffects.Effect effect)
         {
+            // A new best's confetti depends on the editor's saved best; the screens scenario checks it.
+            if (effect == CatchEffects.Effect.Confetti)
+                return;
+
             effectList.Add(effect.ToString());
 
             // One capture a moment after the first sparkle and one after the first splash, with particles in the air.
@@ -2118,6 +2124,101 @@ public static class SimTestDriver
             Log($"  {reading}");
 
         Log($"At Game Over: score text \"{HudText("Score Text")}\", final \"{HudText("Final Score Text")}\"");
+    }
+
+    /// <summary>
+    /// V1.0 polish step 4, on the Realme 7-sized portrait view: the title, tagline and version before a round,
+    /// the Start button's pulse, and after the planned 205-point round (best set to 40 first) the Game Over
+    /// stats worked out by hand (8 good fruit caught, best streak 7) and the confetti for the new best.
+    /// </summary>
+    static IEnumerator<float> Screens()
+    {
+        const string plan = "CCCCMCCMCCCM";
+        string[] order = { "RedApple", "RedApple", "GoldenApple", "RedApple", "RottenApple", "RedApple", "RottenApple", "RedApple", "GreenApple", "Orange", "Lemon", "RedApple" };
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        var effects = Object.FindAnyObjectByType<CatchEffects>();
+        yield return 0.5f;
+        if (Screen.width != 1080 || Screen.height != 2400)
+        {
+            Log("FAIL: the Game view is not 1080x2400");
+            yield break;
+        }
+
+        ARStatusText.showDebugInEditor = false;
+
+        // As in the portrait scenario: the top 96 px kept clear as for the Realme 7's camera hole.
+        const float cameraHole = 96f;
+        Object.FindAnyObjectByType<SafeAreaFitter>().GetComponent<RectTransform>().anchorMax = new Vector2(1f, 1f - cameraHole / Screen.height);
+        var safe = new Rect(0f, 0f, Screen.width, Screen.height - cameraHole);
+        Log($"Scanning: title shown {FindActive("Game Title")}, title \"{HudText("Title Text")}\", tagline \"{HudText("Tagline Text")}\", version \"{HudText("Version Text")}\"");
+
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        float readyWait = Time.time;
+        while (game.state != GameStateManager.GameState.Ready && Time.time - readyWait < 10f)
+            yield return 0.25f;
+
+        // The pulse over a little more than one period.
+        var startButton = FindDeep("Start Button");
+        float smallest = float.MaxValue, largest = 0f;
+        float pulseStart = Time.time;
+        while (Time.time - pulseStart < 1.4f)
+        {
+            smallest = Mathf.Min(smallest, startButton.localScale.x);
+            largest = Mathf.Max(largest, startButton.localScale.x);
+            yield return 0f;
+        }
+
+        Log($"Ready: title shown {FindActive("Game Title")}, Start button scale {smallest:F3}-{largest:F3} over 1.4 s");
+        CheckLayout("start screen", safe, "Status Background", "Game Title", "Version Text", "Start Button");
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-screens-1-start.png"));
+        yield return 0.3f;
+
+        var planned = new List<FruitType>();
+        foreach (string name in order)
+            planned.Add(LoadType(name));
+
+        spawner.QueueTypes(planned);
+        int confetti = 0;
+        void EffectPlayed(CatchEffects.Effect effect)
+        {
+            if (effect == CatchEffects.Effect.Confetti)
+                confetti++;
+        }
+
+        effects.played += EffectPlayed;
+        FindButton("Start Button").onClick.Invoke();
+        yield return 0.2f;
+        Log($"Countdown: title shown {FindActive("Game Title")}, version shown {FindActive("Version Text")}, Start button scale {startButton.localScale.x:F2}");
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        var outcomes = new System.Text.StringBuilder();
+        var play = PlayPlan(plan, follower, spawner, game, outcomes);
+        while (play.MoveNext())
+            yield return play.Current;
+
+        // Captured while the confetti is in the air.
+        yield return 0.35f;
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-screens-2-gameover.png"));
+        yield return 0.5f;
+        effects.played -= EffectPlayed;
+        Log($"Planned {plan}, got {outcomes}; {game.state}, score {score.score}, caught {score.caughtCount} (worked by hand 8), best streak {score.bestStreak} (worked by hand 7), " +
+            $"round time {spawner.roundTime:F1} s");
+        Log($"Game Over: stats \"{HudText("Stats Text")}\", best line \"{HudText("Best Text")}\", confetti bursts {confetti}");
+        CheckLayout("game over", safe, "Game Over Panel");
+        CheckLayout("game over panel", safe, "Title", "Final Score Text", "Best Text", "Stats Text", "Restart Button");
+        ARStatusText.showDebugInEditor = true;
     }
 
     // Saves a Game view capture once play time reaches the given moment.

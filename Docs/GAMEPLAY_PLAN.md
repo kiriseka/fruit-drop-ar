@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V1.0 polish step 4 (start and Game Over screens).
+- **Next step:** V1.0 polish step 5 (plane overlay fade, golden apple trail and chime).
 - **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
@@ -419,7 +419,12 @@ The user waived the phone test on 2026-11-22: polish the game, verify it in XR S
   - **Sim scenario `hud-feedback`** (the planned 205-point round): pop-ups "+10, +10, +100, Combo ×2, +20, +20, -20, +15, +20, +30", as worked by hand. The score text read "20" as "+100" appeared, "74" 0.15 s later and "120" after 0.5 s; "205" at Game Over. The multiplier was at 1.39 size 0.05 s after "Combo ×2" and 1.00 after 0.4 s. The heart lost at the first miss was at 0.92 size and full 0.1 s after, and dimmed (0.25) at normal size 0.6 s after.
   - `portrait`: a capture just after the call-out shows "Combo ×2" under the score bar and "+10" over the basket (`Builds/V1.0-polish-popups.png`, not in git). In the editor's short landscape view the call-out crosses the basket; the game only runs in portrait.
   - `hud` and `score-round` unchanged in their results; `hud` now waits for the counting score before reading it.
-- [ ] 4. **Start and Game Over screens:** title and version on the start screen, a pulsing Start button; round stats on Game Over; confetti for a new best.
+- [x] 4. **Start and Game Over screens:** title and version on the start screen, a pulsing Start button; round stats on Game Over; confetti for a new best.
+  - **Done.** `StartScreen.cs` on `Safe Area`: under the hint band, "Fruit Drop AR" in bold lemon with the line "Catch the fruit falling onto your floor", on a dark backing so it reads over any camera picture (the first try, without it, lost the white line against a white wall); "v1.0.0" from `Application.version` at the bottom; all shown while scanning and ready. The Start button swells to 1.06 and back every 1.2 s while it can be pressed.
+    - Game Over: the panel is 100 units taller and has a stats line, "8 caught · best streak 7 · 0:23", from `ScoreManager.caughtCount` and `bestStreak` (new, per round; fruit to avoid does not count) and the round clock, which stops in pauses.
+    - New best: `CatchEffects` throws 70 confetti pieces in the fruits' colours up in front of the phone at Game Over.
+  - **Sim scenario `screens`** (Realme 7 portrait view, best set to 40): title, tagline and "v1.0.0" shown while scanning and ready, hidden from the countdown; the Start button's scale went 1.000–1.060 over 1.4 s and back to 1.00 at the countdown. After the planned round: 205 points, 8 caught and best streak 7 (both as worked by hand), stats "8 caught · best streak 7 · 0:23", "New best!", 1 confetti burst. All parts inside the safe area and all text fits, title included. Captures in `Builds/V1.0-polish-screens.png` (not in git).
+  - `portrait`, `feedback` and `hud` unchanged in their results (`feedback` leaves the confetti out of its list, since it depends on the saved best). EditMode tests: 42 passed (round stats and the reported points added); PlayMode 1 passed.
 - [ ] 5. **Scene polish:** fade the AR plane overlay during rounds; a sparkle trail and a chime for the golden apple.
 - [ ] 6. **Balance check** with a modelled human player (120°/s turns, 0.25 s reaction, 5 cm aim error). If the median round lasts under 75 s, ease the late curve (shortest gap 0.85 s, top speed ×1.45) and measure again; otherwise keep the accepted numbers.
 - [ ] 7. **Final v1.0:** full regression and tests, version code 12, APK and Xcode export, tag `v1.0`, full GitHub release, fast-forward `main` to `gameplay`.

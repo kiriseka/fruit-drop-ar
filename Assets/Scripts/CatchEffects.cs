@@ -15,6 +15,7 @@ public class CatchEffects : MonoBehaviour
         Splash,
         Bounce,
         Vibration,
+        Confetti,
     }
 
     [SerializeField]
@@ -24,6 +25,14 @@ public class CatchEffects : MonoBehaviour
     [SerializeField]
     [Tooltip("Gives the basket, for the bounce and for where the sparkles appear.")]
     FloorBasketFollower m_Floor;
+
+    [SerializeField]
+    [Tooltip("Optional. Reports Game Over, for the confetti on a new best score.")]
+    GameStateManager m_Game;
+
+    [SerializeField]
+    [Tooltip("Optional. Tells whether the round beat the best score.")]
+    ScoreManager m_Score;
 
     [SerializeField]
     [Tooltip("Material for the particles: a soft dot that takes its colour from each particle.")]
@@ -47,6 +56,7 @@ public class CatchEffects : MonoBehaviour
 
     ParticleSystem m_Sparkle;
     ParticleSystem m_Splash;
+    ParticleSystem m_Confetti;
     GameObject m_Basket;
     Transform[] m_BounceTargets;
     float m_BounceTime = -1f;
@@ -66,18 +76,40 @@ public class CatchEffects : MonoBehaviour
         // looks about a third of its size, and on a phone the basket is often more than a meter away.
         m_Sparkle = CreateParticles("Catch Sparkle", 35f, 0.5f, 1.0f, 0.03f, 0.06f, 0.5f, 0.3f);
         m_Splash = CreateParticles("Miss Splash", 70f, 0.4f, 0.9f, 0.04f, 0.08f, 0.45f, 1f);
+
+        // Confetti in the fruits' colours, thrown up in front of the phone and drifting down.
+        m_Confetti = CreateParticles("New Best Confetti", 50f, 1.4f, 2.4f, 0.025f, 0.045f, 1.8f, 0.5f);
+        var confettiMain = m_Confetti.main;
+        var colours = new Gradient();
+        colours.SetKeys(
+            new[]
+            {
+                new GradientColorKey(new Color(0.85f, 0.15f, 0.15f), 0f),
+                new GradientColorKey(new Color(1f, 0.55f, 0.05f), 0.25f),
+                new GradientColorKey(new Color(1f, 0.88f, 0.15f), 0.5f),
+                new GradientColorKey(new Color(0.45f, 0.78f, 0.2f), 0.75f),
+                new GradientColorKey(Color.white, 1f),
+            },
+            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
+        confettiMain.startColor = new ParticleSystem.MinMaxGradient(colours) { mode = ParticleSystemGradientMode.RandomColor };
     }
 
     void OnEnable()
     {
         if (m_Spawner != null)
             m_Spawner.fruitLanded += OnFruitLanded;
+
+        if (m_Game != null)
+            m_Game.stateChanged += OnStateChanged;
     }
 
     void OnDisable()
     {
         if (m_Spawner != null)
             m_Spawner.fruitLanded -= OnFruitLanded;
+
+        if (m_Game != null)
+            m_Game.stateChanged -= OnStateChanged;
 
         ResetBounce();
     }
@@ -105,6 +137,21 @@ public class CatchEffects : MonoBehaviour
         // Letting fruit to avoid fall is the right move, so it is not marked as a mistake.
         if (caught == isHazard)
             Vibrate();
+    }
+
+    void OnStateChanged(GameStateManager.GameState state)
+    {
+        if (state != GameStateManager.GameState.GameOver || m_Score == null || !m_Score.isNewHighScore)
+            return;
+
+        var camera = Camera.main;
+        if (camera == null)
+            return;
+
+        // A little below eye level and in front of the phone, so it rises into view and falls past it.
+        var position = camera.transform.position + camera.transform.forward * 1.2f - Vector3.up * 0.3f;
+        m_Confetti.Emit(new ParticleSystem.EmitParams { position = position, applyShapeToPosition = true }, 70);
+        played?.Invoke(Effect.Confetti);
     }
 
     void Update()
