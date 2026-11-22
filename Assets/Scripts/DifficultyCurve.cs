@@ -2,8 +2,9 @@ using UnityEngine;
 
 /// <summary>
 /// How a round gets harder the longer it lasts. Every value is a plain function of the round time in seconds,
-/// so the curve can be checked without playing a round. The numbers come from the proposed difficulty table
-/// and are meant to be tuned in playtests.
+/// so the curve can be checked without playing a round. The numbers come from the proposed difficulty table,
+/// with the late part eased for V1.0 (shortest gap 0.85 s instead of 0.7 s, top speed ×1.45 instead of ×1.6)
+/// after a modelled human player lasted a median 56 s on the original. Meant to be tuned in playtests.
 /// </summary>
 [CreateAssetMenu(fileName = "DifficultyCurve", menuName = "Fruit Drop AR/Difficulty Curve")]
 public class DifficultyCurve : ScriptableObject
@@ -19,7 +20,7 @@ public class DifficultyCurve : ScriptableObject
 
     [SerializeField]
     [Tooltip("Shortest gap between drops, in seconds.")]
-    float m_MinInterval = 0.7f;
+    float m_MinInterval = 0.85f;
 
     [SerializeField]
     [Tooltip("How much the fall speed factor grows for every second of the round. The factor starts at 1.")]
@@ -27,7 +28,7 @@ public class DifficultyCurve : ScriptableObject
 
     [SerializeField]
     [Tooltip("Highest fall speed factor.")]
-    float m_MaxSpeedFactor = 1.6f;
+    float m_MaxSpeedFactor = 1.45f;
 
     [Header("Spread")]
     [SerializeField]

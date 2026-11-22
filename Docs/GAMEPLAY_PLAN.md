@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V1.0 polish step 6 (balance check with a modelled human player).
+- **Next step:** V1.0 polish step 7 (final v1.0: regression, builds, release, merge).
 - **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
@@ -432,7 +432,13 @@ The user waived the phone test on 2026-11-22: polish the game, verify it in XR S
   - **Sim scenario `scene-polish`:** plane fill 0.330 at Ready, 0.187 at 0.25 s into the countdown, 0.050 at 0.75 s and through the round, 0.330 again 0.8 s after Game Over. Up to 25 sparkles in the air behind the falling golden apple; red apples have no trail. Sounds for golden, red, red: GoldenChime, CatchPop, CatchPop. A close capture shows the trail (`Builds/V1.0-polish-golden-trail.png`, not in git).
   - `variety`, `marker` and `feedback` unchanged (`variety` hides the start title, which in the editor's landscape view covered the row).
   - Unity's URP material check rewrote `ARPlaneVisible.mat` on the way (passes a transparent material never uses, a legacy colour field). Nothing renders differently; it is left uncommitted like the other generated churn.
-- [ ] 6. **Balance check** with a modelled human player (120°/s turns, 0.25 s reaction, 5 cm aim error). If the median round lasts under 75 s, ease the late curve (shortest gap 0.85 s, top speed ×1.45) and measure again; otherwise keep the accepted numbers.
+- [x] 6. **Balance check** with a modelled human player (120°/s turns, 0.25 s reaction, 5 cm aim error). If the median round lasts under 75 s, ease the late curve (shortest gap 0.85 s, top speed ×1.45) and measure again; otherwise keep the accepted numbers.
+  - **Done.** Sim scenario `human-round` (menu **Fruit Drop > Sim > human-round (balance)**, not part of All): three full rounds with lives on, played by the model; the aim errors are seeded.
+    - **Accepted curve** (shortest gap 0.70 s, top speed ×1.6): rounds of 69, 56 and 40 s, median 56 s; scores 2010, 1105, 895; good fruit missed per 30 s 0 / 1 / 2, 0 / 3 and 0 / 3.
+    - Under 75 s, so the late curve was eased as planned: `DifficultyCurve` defaults and `Assets/Data/DifficultyCurve.asset` now have a shortest gap of 0.85 s (reached at 77 s) and a top speed of ×1.45 (reached at 56 s). The curve tests and the `curve` scenario use the new table: t = 60 / 90 / 120 s → gap 1.10 / 0.85 / 0.85 s, speed ×1.45. Pick shares unchanged.
+    - **Eased curve:** rounds of 51, 56 and 58 s, median 56 s again; scores 1715, 1950, 1235; misses 0 / 3 in all three.
+    - **Finding:** easing the late curve changed nothing measurable, because the model's rounds end before it: every miss in all six rounds came between 30 and 60 s, when double drops begin and the spread widens toward the edge of the view. The rule fixed one change in advance, so nothing more was tuned. The eased late curve stays; it can only make long rounds kinder.
+    - **For a playtest:** whether real players also lose their lives between 30 and 60 s. If so, the levers are the start of double drops (30 s) and how fast the spread widens (over 60 s). The model is an estimate: a person sees both rings of a double drop at once, which the model does not.
 - [ ] 7. **Final v1.0:** full regression and tests, version code 12, APK and Xcode export, tag `v1.0`, full GitHub release, fast-forward `main` to `gameplay`.
 
 ## Resume prompt (for scheduled tasks)

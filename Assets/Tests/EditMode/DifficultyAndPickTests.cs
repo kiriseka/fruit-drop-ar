@@ -38,10 +38,10 @@ public class DifficultyAndPickTests
     // time, gap between drops, speed factor, spread on a phone seeing 30 degrees each side, rotten share, double chance
     [TestCase(0f, 2.00f, 1.00f, 20f, 0.02f, 0f)]
     [TestCase(30f, 1.55f, 1.24f, 25f, 0.04f, 0.25f)]
-    [TestCase(60f, 1.10f, 1.48f, 30f, 0.06f, 0.25f)]
-    [TestCase(90f, 0.70f, 1.60f, 30f, 0.08f, 0.25f)]
-    [TestCase(120f, 0.70f, 1.60f, 30f, 0.10f, 0.25f)]
-    [TestCase(600f, 0.70f, 1.60f, 30f, 0.10f, 0.25f)]
+    [TestCase(60f, 1.10f, 1.45f, 30f, 0.06f, 0.25f)]
+    [TestCase(90f, 0.85f, 1.45f, 30f, 0.08f, 0.25f)]
+    [TestCase(120f, 0.85f, 1.45f, 30f, 0.10f, 0.25f)]
+    [TestCase(600f, 0.85f, 1.45f, 30f, 0.10f, 0.25f)]
     public void TheCurve_MatchesTheTable(float time, float gap, float speed, float spread, float rotten, float doubles)
     {
         Assert.AreEqual(gap, m_Curve.SpawnInterval(time), 0.001f, "gap");

@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DifficultyCurve
   m_StartInterval: 2
   m_IntervalDropPerSecond: 0.015
-  m_MinInterval: 0.7
+  m_MinInterval: 0.85
   m_SpeedGainPerSecond: 0.008
-  m_MaxSpeedFactor: 1.6
+  m_MaxSpeedFactor: 1.45
   m_StartHalfAngle: 20
   m_HalfAngleRampSeconds: 60
   m_DoubleDropStartSeconds: 30

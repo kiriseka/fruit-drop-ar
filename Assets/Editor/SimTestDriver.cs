@@ -112,6 +112,9 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/screens")] static void MenuScreens() => RunQueue("screens");
     [MenuItem("Fruit Drop/Sim/scene-polish")] static void MenuScenePolish() => RunQueue("scene-polish");
 
+    // Not part of All: it is a measurement of a few minutes, not a pass or fail check.
+    [MenuItem("Fruit Drop/Sim/human-round (balance)")] static void MenuHumanRound() => RunQueue("human-round");
+
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
 
@@ -261,6 +264,7 @@ public static class SimTestDriver
             "hud-feedback" => HudFeedback(),
             "screens" => Screens(),
             "scene-polish" => ScenePolish(),
+            "human-round" => HumanRounds(3),
             _ => null,
         };
 
@@ -2350,6 +2354,118 @@ public static class SimTestDriver
         Log($"Game Over + 0.8 s: plane fill {PlaneAlphas(planes)}, visibility {planes.visibility:F2}");
     }
 
+    /// <summary>
+    /// V1.0 polish step 6: full rounds played by a modelled player instead of the perfect script camera, to see
+    /// how long a round lasts for someone who is good but human. The model turns the phone at most 120 degrees
+    /// a second, notices a new fruit 0.25 s after it becomes the next to land, aims up to 5 cm off (a fixed
+    /// error per fruit, seeded), and leaves rotten fruit alone. It is an estimate, not a playtest.
+    /// </summary>
+    static IEnumerator<float> HumanRounds(int rounds)
+    {
+        const float turnSpeed = 120f;
+        const float reaction = 0.25f;
+        const float aimError = 0.05f;
+        const float longestRound = 300f;
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        var random = new System.Random(2026);
+        var aimOffsets = new Dictionary<Fruit, Vector3>();
+        var lengths = new List<float>();
+
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        for (int round = 1; round <= rounds; round++)
+        {
+            if (game.state != GameStateManager.GameState.Playing)
+            {
+                Log($"FAIL: round {round} did not start ({game.state})");
+                yield break;
+            }
+
+            var missTimes = new List<float>();
+            void Landed(Fruit fruit, bool caught)
+            {
+                if (!caught && !fruit.type.isHazard)
+                    missTimes.Add(spawner.roundTime);
+            }
+
+            spawner.fruitLanded += Landed;
+            Fruit target = null, candidate = null;
+            float candidateSince = 0f;
+            while (game.state != GameStateManager.GameState.GameOver && spawner.roundTime < longestRound)
+            {
+                // The fruit the player is reacting to changes only once the new one has been next for a moment.
+                var next = NextToLand(spawner, follower, true);
+                if (next != candidate)
+                {
+                    candidate = next;
+                    candidateSince = Time.time;
+                }
+
+                if (candidate != null && candidate != target && Time.time - candidateSince >= reaction)
+                    target = candidate;
+
+                if (target != null && !target.gameObject.activeInHierarchy)
+                    target = null;
+
+                if (target != null)
+                {
+                    if (!aimOffsets.TryGetValue(target, out var offset))
+                    {
+                        double angle = random.NextDouble() * 2.0 * Mathf.PI;
+                        float distance = (float)random.NextDouble() * aimError;
+                        offset = new Vector3(Mathf.Cos((float)angle) * distance, 0f, Mathf.Sin((float)angle) * distance);
+                        aimOffsets[target] = offset;
+                    }
+
+                    var spot = target.transform.position + offset;
+                    spot.y = follower.floorHeight;
+                    var wanted = Quaternion.LookRotation(spot - Camera.main.transform.position);
+                    simCamera.rotation = Quaternion.RotateTowards(simCamera.rotation, wanted, turnSpeed * Time.deltaTime);
+                }
+
+                yield return 0f;
+            }
+
+            spawner.fruitLanded -= Landed;
+            float length = spawner.roundTime;
+            lengths.Add(length);
+            var perPart = new List<string>();
+            for (float from = 0f; from < length; from += 30f)
+                perPart.Add(missTimes.FindAll(t => t >= from && t < from + 30f).Count.ToString());
+
+            Log($"Round {round}: {(game.state == GameStateManager.GameState.GameOver ? "Game Over" : "still going")} after {length:F0} s, score {score.score}, " +
+                $"{score.caughtCount} caught, best streak {score.bestStreak}, good fruit missed per 30 s: {string.Join(" / ", perPart)}");
+            aimOffsets.Clear();
+
+            if (round < rounds)
+            {
+                if (game.state != GameStateManager.GameState.GameOver)
+                {
+                    Log("Round stopped at the time limit; the next round needs Game Over first");
+                    break;
+                }
+
+                yield return 1f;
+                game.Restart();
+                var countdown = WaitForPlaying(game);
+                while (countdown.MoveNext())
+                    yield return countdown.Current;
+            }
+        }
+
+        lengths.Sort();
+        float median = lengths[lengths.Count / 2];
+        var curve = AssetDatabase.LoadAssetAtPath<DifficultyCurve>(k_CurvePath);
+        Log($"Round lengths {string.Join(", ", lengths.ConvertAll(l => l.ToString("F0")))} s; median {median:F0} s " +
+            $"(curve: shortest gap {curve.SpawnInterval(1000f):F2} s, top speed x{curve.SpeedFactor(1000f):F2}). " +
+            $"{(median < 75f ? "Under 75 s: ease the late curve, as the plan says" : "75 s or more: keep the accepted numbers")}");
+    }
+
     // Saves a Game view capture once play time reaches the given moment.
     static void CaptureAt(float time, string path)
     {
@@ -2379,9 +2495,9 @@ public static class SimTestDriver
         {
             (0f, 2.00f, 1.00f, 20f, 0.02f, 0f),
             (30f, 1.55f, 1.24f, 25f, 0.04f, 0.25f),
-            (60f, 1.10f, 1.48f, 30f, 0.06f, 0.25f),
-            (90f, 0.70f, 1.60f, 30f, 0.08f, 0.25f),
-            (120f, 0.70f, 1.60f, 30f, 0.10f, 0.25f),
+            (60f, 1.10f, 1.45f, 30f, 0.06f, 0.25f),
+            (90f, 0.85f, 1.45f, 30f, 0.08f, 0.25f),
+            (120f, 0.85f, 1.45f, 30f, 0.10f, 0.25f),
         };
 
         int failures = 0;
