@@ -43,6 +43,12 @@ public class ScoreManager : MonoBehaviour
     /// </summary>
     public event Action outOfLives;
 
+    /// <summary>
+    /// Called for each caught fruit with how much the score changed: the points times the multiplier, or the
+    /// points that fruit to avoid took away (less when the score was already near 0).
+    /// </summary>
+    public event Action<FruitType, int> fruitScored;
+
     public int score => m_Score;
     public int streak => m_Streak;
     public int lives => m_Lives;
@@ -103,6 +109,7 @@ public class ScoreManager : MonoBehaviour
         if (m_Lives <= 0)
             return;
 
+        int scoreBefore = m_Score;
         if (fruitType.isHazard)
         {
             // Letting fruit to avoid fall is the right move, so it costs nothing.
@@ -129,6 +136,9 @@ public class ScoreManager : MonoBehaviour
             m_HighScore = m_Score;
             PlayerPrefs.SetInt(k_HighScoreKey, m_HighScore);
         }
+
+        if (caught)
+            fruitScored?.Invoke(fruitType, m_Score - scoreBefore);
 
         changed?.Invoke();
         if (m_Lives == 0)

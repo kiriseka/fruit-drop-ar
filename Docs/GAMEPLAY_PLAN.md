@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V1.0 polish step 3 (HUD feedback).
+- **Next step:** V1.0 polish step 4 (start and Game Over screens).
 - **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
@@ -413,7 +413,12 @@ The user waived the phone test on 2026-11-22: polish the game, verify it in XR S
   - **Sim scenarios `pause-menu` and `pause-menu-again`:** pause button hidden before a round, shown and tappable in a round; the button pauses (fruit 0.0000 m in 2 s, hint "Paused") and every menu button takes taps; both switches off → listener volume 0.0 and labels "Sound: Off", "Vibration: Off"; Resume → Playing after 3.1 s; a miss with vibration off gives only the splash; Restart from the menu → Countdown, score 0, 3 lives, nothing falling. In a new session both are still off and the volume is 0.0 from the start; switched on again → 1.0.
   - `portrait`: the pause button sits inside the hint band at x 912–1035, y 2069–2192 px; the menu card and its buttons are inside the safe area and every label fits. `onboarding` and `feedback` unchanged.
   - EditMode tests: 40 passed (4 new for `GameSettings`); PlayMode 1 passed.
-- [ ] 3. **HUD feedback:** "+points" pop-ups, a combo call-out, a score that counts up, a punch on the multiplier, hearts that shake before they dim.
+- [x] 3. **HUD feedback:** "+points" pop-ups, a combo call-out, a score that counts up, a punch on the multiplier, hearts that shake before they dim.
+  - **Done.** `ScoreManager.fruitScored` reports how much each catch changed the score. `ScorePopups.cs` on `Safe Area` shows it as "+20" rising from the basket and fading over 0.9 s (lemon; "-20" in red for a rotten catch; "+100" larger), and "Combo ×N" under the score bar when the multiplier goes up. Pop-ups never start so high that they would rise into the score bar or the call-out.
+    - `GameHUD`: the score counts to its new value over 0.3 s (and snaps to 0 for a new round); the multiplier swells to ×1.5 size and settles in 0.25 s when it goes up; a lost heart shakes and shrinks for 0.4 s, then dims.
+  - **Sim scenario `hud-feedback`** (the planned 205-point round): pop-ups "+10, +10, +100, Combo ×2, +20, +20, -20, +15, +20, +30", as worked by hand. The score text read "20" as "+100" appeared, "74" 0.15 s later and "120" after 0.5 s; "205" at Game Over. The multiplier was at 1.39 size 0.05 s after "Combo ×2" and 1.00 after 0.4 s. The heart lost at the first miss was at 0.92 size and full 0.1 s after, and dimmed (0.25) at normal size 0.6 s after.
+  - `portrait`: a capture just after the call-out shows "Combo ×2" under the score bar and "+10" over the basket (`Builds/V1.0-polish-popups.png`, not in git). In the editor's short landscape view the call-out crosses the basket; the game only runs in portrait.
+  - `hud` and `score-round` unchanged in their results; `hud` now waits for the counting score before reading it.
 - [ ] 4. **Start and Game Over screens:** title and version on the start screen, a pulsing Start button; round stats on Game Over; confetti for a new best.
 - [ ] 5. **Scene polish:** fade the AR plane overlay during rounds; a sparkle trail and a chime for the golden apple.
 - [ ] 6. **Balance check** with a modelled human player (120°/s turns, 0.25 s reaction, 5 cm aim error). If the median round lasts under 75 s, ease the late curve (shortest gap 0.85 s, top speed ×1.45) and measure again; otherwise keep the accepted numbers.

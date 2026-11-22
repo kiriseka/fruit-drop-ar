@@ -39,7 +39,7 @@ public static class SimTestDriver
     }
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,hud-feedback,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -108,6 +108,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/portrait")] static void MenuPortrait() => RunQueue("portrait");
     [MenuItem("Fruit Drop/Sim/mobile")] static void MenuMobile() => RunQueue("mobile");
     [MenuItem("Fruit Drop/Sim/pause-menu, then again")] static void MenuPauseMenu() => RunQueue("pause-menu,pause-menu-again");
+    [MenuItem("Fruit Drop/Sim/hud-feedback")] static void MenuHudFeedback() => RunQueue("hud-feedback");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -255,6 +256,7 @@ public static class SimTestDriver
             "mobile" => Mobile(),
             "pause-menu" => PauseMenuRound(),
             "pause-menu-again" => PauseMenuAgain(),
+            "hud-feedback" => HudFeedback(),
             _ => null,
         };
 
@@ -1108,6 +1110,11 @@ public static class SimTestDriver
             yield return 0f;
         }
 
+        // The score text counts up over 0.3 s since V1.0 polish step 3, so let it catch up before reading it.
+        float settle = Time.time;
+        while (HudText("Score Text") != score.score.ToString() && Time.time - settle < 1f)
+            yield return 0f;
+
         // The hand-worked total: catches 1-5 score 10 each, catches 6-10 score 20 each, and so on.
         int caught = spawner.caughtCount;
         int expected = 0;
@@ -1669,6 +1676,21 @@ public static class SimTestDriver
         while (countdown.MoveNext())
             yield return countdown.Current;
 
+        // One capture just after the combo call-out, with the points still rising from the basket.
+        var popups = Object.FindAnyObjectByType<ScorePopups>();
+        bool calloutCaptured = false;
+        void Shown(string text)
+        {
+            if (calloutCaptured || !text.StartsWith("Combo"))
+                return;
+
+            calloutCaptured = true;
+            CaptureAt(Time.time + 0.12f, "Temp/SimTest-portrait-7-popups.png");
+        }
+
+        if (popups != null)
+            popups.shown += Shown;
+
         // Follow the fruit for a while, then capture with one low in view above its ring.
         bool captured = false;
         float playStart = Time.time;
@@ -1691,6 +1713,10 @@ public static class SimTestDriver
             yield return 0f;
         }
 
+        if (popups != null)
+            popups.shown -= Shown;
+
+        Log($"  pop-ups: a capture after the combo call-out {(calloutCaptured ? "was taken" : "FAIL: was not taken, no call-out in the round")}");
         yield return 0.3f;
         FindButton("Pause Button").onClick.Invoke();
         yield return 0.3f;
@@ -1979,6 +2005,119 @@ public static class SimTestDriver
         GameSettings.soundOn = true;
         GameSettings.vibrationOn = true;
         Log($"Both on again: sound {GameSettings.soundOn}, vibration {GameSettings.vibrationOn}, listener volume {AudioListener.volume:F1}");
+    }
+
+    // Reads a value once play time reaches the given moment and adds it to the list.
+    static void ReadAt(float time, System.Func<string> read, List<string> into)
+    {
+        EditorApplication.CallbackFunction wait = null;
+        wait = () =>
+        {
+            if (EditorApplication.isPlaying && Time.time < time)
+                return;
+
+            EditorApplication.update -= wait;
+            if (EditorApplication.isPlaying)
+                into.Add(read());
+        };
+        EditorApplication.update += wait;
+    }
+
+    static string HeartState(string name)
+    {
+        var heart = FindDeep(name);
+        if (heart == null)
+            return $"{name} missing";
+
+        var image = heart.GetComponent<UnityEngine.UI.Image>();
+        return $"{name} scale {heart.localScale.x:F2}, alpha {image.color.a:F2}";
+    }
+
+    /// <summary>
+    /// V1.0 polish step 3: the planned round of score-round, watching the feedback. The pop-ups must show the
+    /// points worked out by hand, in order, with a call-out when the multiplier reaches ×2; the score must count
+    /// up to its new value instead of jumping; the multiplier must swell when it goes up; a lost heart must
+    /// shake and shrink, then dim.
+    /// </summary>
+    static IEnumerator<float> HudFeedback()
+    {
+        const string plan = "CCCCMCCMCCCM";
+        const string expectedPopups = "+10, +10, +100, Combo ×2, +20, +20, -20, +15, +20, +30";
+        string[] order = { "RedApple", "RedApple", "GoldenApple", "RedApple", "RottenApple", "RedApple", "RottenApple", "RedApple", "GreenApple", "Orange", "Lemon", "RedApple" };
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        var popups = Object.FindAnyObjectByType<ScorePopups>();
+        if (popups == null)
+        {
+            Log("FAIL: no ScorePopups in the scene");
+            yield break;
+        }
+
+        var planned = new List<FruitType>();
+        foreach (string name in order)
+            planned.Add(LoadType(name));
+
+        spawner.QueueTypes(planned);
+        var shownTexts = new List<string>();
+        var readings = new List<string>();
+        void Shown(string text)
+        {
+            shownTexts.Add(text);
+            if (text == "+100")
+            {
+                // The score as shown right after the golden catch, and once it has counted.
+                readings.Add($"score text when +100 appears \"{HudText("Score Text")}\" (score {score.score})");
+                ReadAt(Time.time + 0.15f, () => $"0.15 s later \"{HudText("Score Text")}\"", readings);
+                ReadAt(Time.time + 0.5f, () => $"0.5 s later \"{HudText("Score Text")}\"", readings);
+                CaptureAt(Time.time + 0.1f, "Temp/SimTest-hud-feedback.png");
+            }
+            else if (text.StartsWith("Combo"))
+            {
+                ReadAt(Time.time + 0.05f, () => $"combo text \"{HudText("Combo Text")}\" scale {FindDeep("Combo Text").localScale.x:F2} after 0.05 s", readings);
+                ReadAt(Time.time + 0.4f, () => $"scale {FindDeep("Combo Text").localScale.x:F2} after 0.4 s", readings);
+            }
+        }
+
+        int misses = 0;
+        void Landed(Fruit fruit, bool caught)
+        {
+            if (caught || fruit.type.isHazard || misses > 0)
+                return;
+
+            // The first miss. The score has already taken the life, so the heart lost is the one after the
+            // remaining lives (the rotten apple caught earlier took the third).
+            misses++;
+            string heart = $"Heart {score.lives + 1}";
+            ReadAt(Time.time + 0.1f, () => "first miss +0.1 s: " + HeartState(heart), readings);
+            ReadAt(Time.time + 0.6f, () => "+0.6 s: " + HeartState(heart), readings);
+        }
+
+        popups.shown += Shown;
+        spawner.fruitLanded += Landed;
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        if (game.state != GameStateManager.GameState.Playing)
+            yield break;
+
+        var outcomes = new System.Text.StringBuilder();
+        var play = PlayPlan(plan, follower, spawner, game, outcomes);
+        while (play.MoveNext())
+            yield return play.Current;
+
+        yield return 1f;
+        popups.shown -= Shown;
+        spawner.fruitLanded -= Landed;
+        string got = string.Join(", ", shownTexts);
+        Log($"Planned {plan}, got {outcomes}; {game.state}, score {score.score}");
+        Log($"Pop-ups: {got}: {(got == expectedPopups ? "as worked by hand" : "FAIL: worked by hand " + expectedPopups)}");
+        foreach (string reading in readings)
+            Log($"  {reading}");
+
+        Log($"At Game Over: score text \"{HudText("Score Text")}\", final \"{HudText("Final Score Text")}\"");
     }
 
     // Saves a Game view capture once play time reaches the given moment.

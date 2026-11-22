@@ -1961,6 +1961,7 @@ GameObject:
   - component: {fileID: 1266816050}
   - component: {fileID: 1266816052}
   - component: {fileID: 1266816053}
+  - component: {fileID: 1266816054}
   m_Layer: 0
   m_Name: Safe Area
   m_TagString: Untagged
@@ -2014,6 +2015,8 @@ MonoBehaviour:
   - {fileID: 986196539}
   - {fileID: 494189875}
   m_LostHeartAlpha: 0.25
+  m_ScoreCountSeconds: 0.3
+  m_HeartLossSeconds: 0.4
   m_CountdownText: {fileID: 1583824006}
   m_GameOverPanel: {fileID: 1349396213}
   m_FinalScoreText: {fileID: 1589776238}
@@ -2068,6 +2071,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: FruitDropAR::PauseMenu
   m_Game: {fileID: 437348684}
+--- !u!114 &1266816054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1266816048}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50c87cbc4238fb54f9e720a4a8499070, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FruitDropAR::ScorePopups
+  m_Score: {fileID: 437348685}
+  m_Floor: {fileID: 331264294}
+  m_LossColor: {r: 0.9, g: 0.22, b: 0.21, a: 1}
+  m_Lifetime: 0.9
+  m_Rise: 140
 --- !u!1 &1323550131
 GameObject:
   m_ObjectHideFlags: 0
