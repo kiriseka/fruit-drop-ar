@@ -342,10 +342,20 @@ public static class SimTestDriver
     static IEnumerator<float> WaitForPlaneFloor(FloorBasketFollower follower)
     {
         // XR Simulation only rescans the room when the camera moves, so sweep it slowly across the floor.
+        // Now and then the simulation hands out no planes at all in a session (2 of 25 scenarios in one full run,
+        // both fine when run again). After 15 s the AR session is reset once, and the log says so.
         float start = Time.time;
         float startYaw = simCamera.eulerAngles.y;
-        while (!follower.hasPlaneFloor && Time.time - start < 30f)
+        bool reset = false;
+        while (!follower.hasPlaneFloor && Time.time - start < 45f)
         {
+            if (!reset && Time.time - start > 15f)
+            {
+                Log("No plane after 15 s: resetting the AR session once");
+                Object.FindAnyObjectByType<ARSession>().Reset();
+                reset = true;
+            }
+
             simCamera.rotation = Quaternion.Euler(40f, startYaw + 25f * Mathf.Sin(Time.time - start), 0f);
             yield return 0.25f;
         }
@@ -353,8 +363,8 @@ public static class SimTestDriver
         simCamera.rotation = Quaternion.Euler(40f, startYaw, 0f);
 
         Log(follower.hasPlaneFloor
-            ? $"Plane floor after {Time.time - start:F1} s"
-            : "FAIL: no plane floor after 30 s");
+            ? $"Plane floor after {Time.time - start:F1} s{(reset ? " (after the reset)" : "")}"
+            : "FAIL: no plane floor after 45 s, even after a session reset");
     }
 
     /// <summary>
@@ -2634,11 +2644,20 @@ public static class SimTestDriver
         spawner.fruitSpawned += Spawned;
         spawner.fruitLanded += Landed;
         Application.logMessageReceived += watchLog;
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        void StateChanged(GameStateManager.GameState state) => Log($"  game state {state} at round time {spawner.roundTime:F1} s");
+        game.stateChanged += StateChanged;
         StopScoring();
         spawner.StartSpawning();
         bool captured = false;
+        float lastRoundTime = 0f;
         while (spawner.roundTime < duration)
         {
+            // This scenario drives the spawner alone; anything that restarts it spoils the measurement.
+            if (spawner.roundTime < lastRoundTime)
+                Log($"FAIL: the round clock went back from {lastRoundTime:F1} s to {spawner.roundTime:F1} s (game {game.state}, spawning {spawner.isSpawning})");
+
+            lastRoundTime = spawner.roundTime;
             Fruit next = null;
             float nextSeconds = float.MaxValue;
             int falling = 0;
@@ -2673,6 +2692,7 @@ public static class SimTestDriver
         spawner.fruitSpawned -= Spawned;
         spawner.fruitLanded -= Landed;
         Application.logMessageReceived -= watchLog;
+        game.stateChanged -= StateChanged;
         spawner.StopSpawning();
 
         // A double drop is two fruits in one frame; the first of each frame counts as the drop.

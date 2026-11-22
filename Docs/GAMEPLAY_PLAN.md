@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V1.0 polish step 7 (final v1.0: regression, builds, release, merge).
+- **Next step:** none. Fruit Drop AR 1.0 is released (`v1.0`, full GitHub release) and `main` holds it. Anything further is a new version (v1.0.1 for fixes).
 - **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
@@ -439,7 +439,14 @@ The user waived the phone test on 2026-11-22: polish the game, verify it in XR S
     - **Eased curve:** rounds of 51, 56 and 58 s, median 56 s again; scores 1715, 1950, 1235; misses 0 / 3 in all three.
     - **Finding:** easing the late curve changed nothing measurable, because the model's rounds end before it: every miss in all six rounds came between 30 and 60 s, when double drops begin and the spread widens toward the edge of the view. The rule fixed one change in advance, so nothing more was tuned. The eased late curve stays; it can only make long rounds kinder.
     - **For a playtest:** whether real players also lose their lives between 30 and 60 s. If so, the levers are the start of double drops (30 s) and how fast the spread widens (over 60 s). The model is an estimate: a person sees both rings of a double drop at once, which the model does not.
-- [ ] 7. **Final v1.0:** full regression and tests, version code 12, APK and Xcode export, tag `v1.0`, full GitHub release, fast-forward `main` to `gameplay`.
+- [x] 7. **Final v1.0:** full regression and tests, version code 12, APK and Xcode export, tag `v1.0`, full GitHub release, fast-forward `main` to `gameplay`.
+  - **Regression:** `Fruit Drop > Sim > All` is now 25 scenarios. Two full runs:
+    - The first run passed everything but `long-round`: its round clock was restarted partway (357 s of play, twice the drops per part, a negative gap). Run alone it was clean, and a second full run was clean too. The likeliest cause is input reaching the Unity window during that run, a click or key that started a round, but that is not proven. `long-round` now fails loudly if its round clock goes back and logs every game state change.
+    - In the second run, `floor-edge` and `screens` got no plane from XR Simulation within 30 s (at normal frame rates); both passed when run again (plane after 0.6 and 0.3 s). The floor wait now resets the AR session once after 15 s and says so in the log.
+    - Everything else in the second run passed: 205 and 90 as worked by hand, sounds, effects, pop-ups, stats "8 caught · best streak 7 · 0:23", pause menu, back key through the Input System, plane fade, golden trail, 0 errors.
+  - **Tests:** EditMode 42 passed, PlayMode 1 passed.
+  - **Builds:** version 1.0.0, Android version code 12, iOS build number 12. `Builds/V1.0.apk`, 35.2 MB, 0 errors, 5.5 min; `aapt`: `com.kiriseka.fruitdropar` 1.0.0 (12), "Fruit Drop AR", CAMERA / INTERNET / VIBRATE. Xcode project `Builds/iOS-v1.0`, 0 errors, 2.2 min, zipped as `Builds/FruitDropAR-iOS-Xcode-v1.0.zip` (313 MB); not built in Xcode.
+  - **Release:** tagged `v1.0`, published as the full (Latest) GitHub release with both files and `Builds/V1.0-release-notes.md` (not in git), which say it was not tested on a phone. `main` fast-forwarded to `gameplay` and pushed.
 
 ## Resume prompt (for scheduled tasks)
 
