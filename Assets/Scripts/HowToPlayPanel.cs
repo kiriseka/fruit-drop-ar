@@ -65,52 +65,27 @@ public class HowToPlayPanel : MonoBehaviour
     void Build()
     {
         // A dim layer over the whole HUD. It takes the taps, so nothing behind it can be pressed.
-        m_Panel = NewRect("How To Play", transform, Vector2.zero, Vector2.one);
+        m_Panel = UiBuilder.NewRect("How To Play", transform, Vector2.zero, Vector2.one);
         m_Panel.transform.SetAsLastSibling();
         m_Panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
 
         // The card ends above the Start button, so the button is not half covered behind it, and a quick second
         // tap on "Got it" does not land on Start. Its top stays under the hint band.
-        var card = NewRect("Card", m_Panel.transform, new Vector2(0.07f, 0.20f), new Vector2(0.93f, 0.88f));
+        var card = UiBuilder.NewRect("Card", m_Panel.transform, new Vector2(0.07f, 0.20f), new Vector2(0.93f, 0.88f));
         card.AddComponent<Image>().color = m_CardColor;
 
-        NewText("Title", card.transform, new Vector2(0.06f, 0.82f), new Vector2(0.94f, 0.96f), "How to play", 96f, m_AccentColor, TextAlignmentOptions.Center);
-        NewText("Instructions", card.transform, new Vector2(0.07f, 0.38f), new Vector2(0.93f, 0.80f), m_Instructions, 48f, Color.white, TextAlignmentOptions.TopLeft);
-        NewText("Safety Note", card.transform, new Vector2(0.07f, 0.21f), new Vector2(0.93f, 0.36f), m_SafetyNote, 44f, m_AccentColor, TextAlignmentOptions.Center);
+        UiBuilder.NewText("Title", card.transform, new Vector2(0.06f, 0.82f), new Vector2(0.94f, 0.96f), "How to play", 96f, m_AccentColor, TextAlignmentOptions.Center);
+        UiBuilder.NewText("Instructions", card.transform, new Vector2(0.07f, 0.38f), new Vector2(0.93f, 0.80f), m_Instructions, 48f, Color.white, TextAlignmentOptions.TopLeft);
+        UiBuilder.NewText("Safety Note", card.transform, new Vector2(0.07f, 0.21f), new Vector2(0.93f, 0.36f), m_SafetyNote, 44f, m_AccentColor, TextAlignmentOptions.Center);
 
-        var button = NewRect("Got It Button", card.transform, new Vector2(0.25f, 0.04f), new Vector2(0.75f, 0.18f));
+        var button = UiBuilder.NewRect("Got It Button", card.transform, new Vector2(0.25f, 0.04f), new Vector2(0.75f, 0.18f));
         var image = button.AddComponent<Image>();
         image.color = m_AccentColor;
         button.AddComponent<Button>().onClick.AddListener(Dismiss);
-        var label = NewText("Label", button.transform, new Vector2(0.05f, 0.1f), new Vector2(0.95f, 0.9f), "Got it", 72f, new Color(0.122f, 0.227f, 0.180f, 1f), TextAlignmentOptions.Center);
+        var label = UiBuilder.NewText("Label", button.transform, new Vector2(0.05f, 0.1f), new Vector2(0.95f, 0.9f), "Got it", 72f, new Color(0.122f, 0.227f, 0.180f, 1f), TextAlignmentOptions.Center);
 
         // Only the button itself should take the tap, not its label.
         label.raycastTarget = false;
         Debug.Log("[HowToPlayPanel] First run, showing how to play");
-    }
-
-    static GameObject NewRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax)
-    {
-        var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
-        rect.SetParent(parent, false);
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-        return rect.gameObject;
-    }
-
-    // Text shrinks to fit its box, so the same panel reads on a narrow phone and a wide tablet.
-    static TextMeshProUGUI NewText(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, string content, float maxSize, Color color, TextAlignmentOptions alignment)
-    {
-        var text = NewRect(name, parent, anchorMin, anchorMax).AddComponent<TextMeshProUGUI>();
-        text.text = content;
-        text.color = color;
-        text.alignment = alignment;
-        text.enableAutoSizing = true;
-        text.fontSizeMin = 16f;
-        text.fontSizeMax = maxSize;
-        text.raycastTarget = false;
-        return text;
     }
 }

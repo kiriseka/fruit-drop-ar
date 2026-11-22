@@ -176,6 +176,9 @@ public class CatchEffects : MonoBehaviour
 
     void Vibrate()
     {
+        if (!GameSettings.vibrationOn)
+            return;
+
 #if UNITY_ANDROID && !UNITY_EDITOR
         // Handheld.Vibrate is a fixed, much longer buzz, so the Android vibrator is asked for a short one.
         // Handheld.Vibrate stays as the fallback, which also makes Unity add the VIBRATE permission.

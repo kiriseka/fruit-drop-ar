@@ -66,6 +66,9 @@ public class GameAudio : MonoBehaviour
 
     void Awake()
     {
+        // The player's sound setting from the last session.
+        GameSettings.ApplySound();
+
         m_Source = gameObject.AddComponent<AudioSource>();
         m_Source.playOnAwake = false;
         m_Source.spatialBlend = 0f;

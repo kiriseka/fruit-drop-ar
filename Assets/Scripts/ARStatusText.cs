@@ -107,6 +107,9 @@ public class ARStatusText : MonoBehaviour
                 return "Need more light";
         }
 
+        if (game != null && game.isPausedByPlayer)
+            return "Paused";
+
         if (game != null && game.isPaused)
             return "Paused. Point the phone at the floor to carry on";
 

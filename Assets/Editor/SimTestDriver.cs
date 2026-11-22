@@ -39,7 +39,7 @@ public static class SimTestDriver
     }
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -107,6 +107,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/onboarding, then again")] static void MenuOnboarding() => RunQueue("onboarding,onboarding-again");
     [MenuItem("Fruit Drop/Sim/portrait")] static void MenuPortrait() => RunQueue("portrait");
     [MenuItem("Fruit Drop/Sim/mobile")] static void MenuMobile() => RunQueue("mobile");
+    [MenuItem("Fruit Drop/Sim/pause-menu, then again")] static void MenuPauseMenu() => RunQueue("pause-menu,pause-menu-again");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -188,6 +189,13 @@ public static class SimTestDriver
             PlayModeWindow.SetCustomRenderingResolution(1080, 2400, "Realme 7");
         }
 
+        // Sound and vibration start on in every scenario but pause-menu-again, which checks what pause-menu left.
+        if (scenario != "pause-menu-again")
+        {
+            PlayerPrefs.DeleteKey("FruitDropAR.SoundOn");
+            PlayerPrefs.DeleteKey("FruitDropAR.VibrationOn");
+        }
+
         PlayerPrefs.Save();
         EditorApplication.EnterPlaymode();
     }
@@ -245,6 +253,8 @@ public static class SimTestDriver
             "point-memory" => PointMemory(),
             "portrait" => Portrait(),
             "mobile" => Mobile(),
+            "pause-menu" => PauseMenuRound(),
+            "pause-menu-again" => PauseMenuAgain(),
             _ => null,
         };
 
@@ -1623,7 +1633,7 @@ public static class SimTestDriver
         var safeAreaRect = Object.FindAnyObjectByType<SafeAreaFitter>().GetComponent<RectTransform>();
         safeAreaRect.anchorMax = new Vector2(1f, 1f - cameraHole / Screen.height);
         var safe = new Rect(0f, 0f, Screen.width, Screen.height - cameraHole);
-        string[] parts = { "Status Background", "Round Bar", "Countdown Text", "Start Button", "Game Over Panel", "Card", "Got It Button" };
+        string[] parts = { "Status Background", "Pause Button", "Round Bar", "Countdown Text", "Start Button", "Game Over Panel", "Card", "Got It Button" };
 
         var wait = WaitForPlaneFloor(follower);
         while (wait.MoveNext())
@@ -1682,6 +1692,16 @@ public static class SimTestDriver
         }
 
         yield return 0.3f;
+        FindButton("Pause Button").onClick.Invoke();
+        yield return 0.3f;
+        CheckLayout("paused", safe, "Status Background", "Pause Card", "Pause Title", "Resume Button", "Restart Button Pause", "Sound Button", "Vibration Button");
+        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-6-paused.png"));
+        yield return 0.3f;
+        FindButton("Resume Button").onClick.Invoke();
+        float resumeWait = Time.time;
+        while (game.state != GameStateManager.GameState.Playing && Time.time - resumeWait < 10f)
+            yield return 0.1f;
+
         simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
         float overStart = Time.time;
         while (game.state != GameStateManager.GameState.GameOver && Time.time - overStart < 30f)
@@ -1857,6 +1877,108 @@ public static class SimTestDriver
         Log($"Back key at Game Over: {game.state}. Back key presses arrived through: {string.Join(", ", backVia)}");
         inputSettings.backgroundBehavior = oldBackground;
         inputSettings.editorInputBehaviorInPlayMode = oldEditorInput;
+    }
+
+    /// <summary>
+    /// V1.0 polish step 2: the pause button during a round, the menu it opens (Resume, Restart, sound and
+    /// vibration), the switches taking effect at once, and no vibration for a miss once it is off.
+    /// </summary>
+    static IEnumerator<float> PauseMenuRound()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+        var menu = Object.FindAnyObjectByType<PauseMenu>();
+        var effects = Object.FindAnyObjectByType<CatchEffects>();
+        if (menu == null)
+        {
+            Log("FAIL: no PauseMenu in the scene");
+            yield break;
+        }
+
+        yield return 0.5f;
+        Log($"Before a round: pause button shown {FindActive("Pause Button")}, menu shown {menu.isShowing}, sound {GameSettings.soundOn}, vibration {GameSettings.vibrationOn}, listener volume {AudioListener.volume:F1}");
+        spawner.QueueTypes(Repeat("RedApple", 60));
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        if (game.state != GameStateManager.GameState.Playing)
+            yield break;
+
+        Fruit falling = null;
+        float wait = Time.time;
+        while (falling == null && Time.time - wait < 6f)
+        {
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                if (fruit.transform.position.y > follower.floorHeight + 1.2f)
+                    falling = fruit;
+            }
+
+            yield return 0.05f;
+        }
+
+        var pauseButton = FindButton("Pause Button");
+        Log($"In a round: pause button shown {FindActive("Pause Button")}, a tap reaches it {CanTap(pauseButton)}");
+        pauseButton.onClick.Invoke();
+        yield return 0.1f;
+        float heldY = falling != null ? falling.transform.position.y : 0f;
+        yield return 2f;
+        Log($"Pause button: {game.state}, paused by the player {game.isPausedByPlayer}, menu shown {menu.isShowing}, pause button shown {FindActive("Pause Button")}, " +
+            $"fruit moved {(falling != null ? Mathf.Abs(falling.transform.position.y - heldY) : -1f):F4} m in 2 s, hint \"{Hint()}\"");
+        Log($"  taps reach Resume {CanTap(FindButton("Resume Button"))}, Restart {CanTap(FindButton("Restart Button Pause"))}, " +
+            $"Sound {CanTap(FindButton("Sound Button"))}, Vibration {CanTap(FindButton("Vibration Button"))}");
+
+        FindButton("Sound Button").onClick.Invoke();
+        FindButton("Vibration Button").onClick.Invoke();
+        yield return 0.1f;
+        Log($"Both switched off: sound {GameSettings.soundOn}, vibration {GameSettings.vibrationOn}, listener volume {AudioListener.volume:F1}, " +
+            $"labels \"{HudText("Sound Label")}\" and \"{HudText("Vibration Label")}\"");
+
+        FindButton("Resume Button").onClick.Invoke();
+        float resumeStart = Time.time;
+        while (game.state != GameStateManager.GameState.Playing && Time.time - resumeStart < 10f)
+            yield return 0.1f;
+
+        Log($"Resume: {game.state} after {Time.time - resumeStart:F1} s, menu shown {menu.isShowing}, pause button shown {FindActive("Pause Button")}");
+
+        // A miss with vibration off: the splash, and no buzz.
+        var effectList = new List<string>();
+        void EffectPlayed(CatchEffects.Effect effect) => effectList.Add(effect.ToString());
+        effects.played += EffectPlayed;
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        int missesBefore = spawner.missedCount;
+        float missWait = Time.time;
+        while (spawner.missedCount == missesBefore && Time.time - missWait < 10f)
+            yield return 0.1f;
+
+        yield return 0.1f;
+        effects.played -= EffectPlayed;
+        Log($"A miss with vibration off: effects {string.Join(", ", effectList)}");
+
+        // Restart from the menu.
+        int scoreBefore = score.score;
+        FindButton("Pause Button").onClick.Invoke();
+        yield return 0.2f;
+        FindButton("Restart Button Pause").onClick.Invoke();
+        yield return 0.2f;
+        Log($"Restart from the menu (lives were {score.lives}, score {scoreBefore}): {game.state}, score {score.score}, lives {score.lives}, menu shown {menu.isShowing}, " +
+            $"pause button shown {FindActive("Pause Button")}, fruit falling {spawner.GetComponentsInChildren<Fruit>().Length}");
+    }
+
+    /// <summary>
+    /// V1.0 polish step 2, in a new Play mode session after pause-menu: the switches it turned off are still
+    /// off and the sound is muted from the start; then both are turned on again.
+    /// </summary>
+    static IEnumerator<float> PauseMenuAgain()
+    {
+        yield return 1f;
+        Log($"New session: sound {GameSettings.soundOn}, vibration {GameSettings.vibrationOn}, listener volume {AudioListener.volume:F1}");
+        GameSettings.soundOn = true;
+        GameSettings.vibrationOn = true;
+        Log($"Both on again: sound {GameSettings.soundOn}, vibration {GameSettings.vibrationOn}, listener volume {AudioListener.volume:F1}");
     }
 
     // Saves a Game view capture once play time reaches the given moment.

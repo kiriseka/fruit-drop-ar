@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V1.0 polish step 2 (pause menu and settings).
+- **Next step:** V1.0 polish step 3 (HUD feedback).
 - **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
@@ -405,7 +405,14 @@ The user waived the phone test on 2026-11-22: polish the game, verify it in XR S
     - Back key (Escape in the Input System): resumes a player pause, pauses a round, and outside a round sends the app to the background on Android (`moveTaskToBack`, so nothing is lost).
     - `FruitDropAR` and `FruitDropAR.Editor` now refer to `Unity.InputSystem`.
   - **Sim scenario `mobile`:** sleep "never" while scanning and playing; app to the background mid-round → Paused by the player, sleep back to the phone's setting, fruit 0.0000 m in 2 s, still paused 2 s after coming back with tracking good; back key → Resuming with the fruit held (0.0000 m in 1 s), then Playing with the fruit moving (0.245 m in 0.3 s); back key in a round → Paused; restart from the pause → Countdown with score 0, 3 lives, no fruit left falling; a pause in the countdown holds it (0.000 s in 1 s); Game Over → the phone's setting; back at Game Over leaves the game state alone. All three back presses arrived through the Input System (the driver lets input through without Game view focus for this scenario).
-- [ ] 2. **Pause menu and settings:** a pause button in rounds; a panel with Resume, Restart, sound on/off and vibration on/off, kept in PlayerPrefs.
+- [x] 2. **Pause menu and settings:** a pause button in rounds; a panel with Resume, Restart, sound on/off and vibration on/off, kept in PlayerPrefs.
+  - **Done.** `PauseMenu.cs` on `Safe Area` builds a pause button (two white bars on forest, at the right end of the hint band, shown only in rounds) and a menu card: "Paused", Resume (lemon), Restart, "Sound: On/Off", "Vibration: On/Off". The menu follows the game's player pause, so leaving the app or the back key opens it too.
+    - `GameSettings.cs`: sound and vibration, on by default, in PlayerPrefs (`FruitDropAR.SoundOn`, `FruitDropAR.VibrationOn`). Sound off sets `AudioListener.volume` to 0, which silences everything including the placed cues; `GameAudio` applies it at start. `CatchEffects` skips the vibration when it is off.
+    - The hint reads "Paused" during a player pause.
+    - `UiBuilder.cs` now holds the panel-building helpers and the two game colours; `HowToPlayPanel` uses it.
+  - **Sim scenarios `pause-menu` and `pause-menu-again`:** pause button hidden before a round, shown and tappable in a round; the button pauses (fruit 0.0000 m in 2 s, hint "Paused") and every menu button takes taps; both switches off → listener volume 0.0 and labels "Sound: Off", "Vibration: Off"; Resume → Playing after 3.1 s; a miss with vibration off gives only the splash; Restart from the menu → Countdown, score 0, 3 lives, nothing falling. In a new session both are still off and the volume is 0.0 from the start; switched on again → 1.0.
+  - `portrait`: the pause button sits inside the hint band at x 912–1035, y 2069–2192 px; the menu card and its buttons are inside the safe area and every label fits. `onboarding` and `feedback` unchanged.
+  - EditMode tests: 40 passed (4 new for `GameSettings`); PlayMode 1 passed.
 - [ ] 3. **HUD feedback:** "+points" pop-ups, a combo call-out, a score that counts up, a punch on the multiplier, hearts that shake before they dim.
 - [ ] 4. **Start and Game Over screens:** title and version on the start screen, a pulsing Start button; round stats on Game Over; confetti for a new best.
 - [ ] 5. **Scene polish:** fade the AR plane overlay during rounds; a sparkle trail and a chime for the golden apple.
