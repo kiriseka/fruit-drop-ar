@@ -533,6 +533,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2512387470528047719, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
       insertIndex: -1
       addedObject: {fileID: 331264294}
+    - targetCorrespondingSourceObject: {fileID: 2512387470528047719, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 331264295}
   m_SourcePrefab: {fileID: 100100000, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
 --- !u!1 &331264287 stripped
 GameObject:
@@ -581,6 +584,23 @@ MonoBehaviour:
   m_FloorClusterPoints: 12
   m_TrackingLostGrace: 1
   m_HidePlanesWhilePlaying: 1
+--- !u!114 &331264295
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 331264287}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0352ea018578dc44ba66ec51908665f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FruitDropAR::PlaneVisibility
+  m_Game: {fileID: 437348684}
+  m_PlaneManager: {fileID: 151853166}
+  m_RoundFillShare: 0.15
+  m_RoundOutlineShare: 0.3
+  m_FadeSeconds: 0.5
 --- !u!1 &437348681
 GameObject:
   m_ObjectHideFlags: 0
@@ -699,6 +719,7 @@ MonoBehaviour:
   m_Game: {fileID: 437348684}
   m_SpawnClip: {fileID: 8300000, guid: 57fec7bed0f481243b15ceb45dcce6d4, type: 3}
   m_CatchClip: {fileID: 8300000, guid: 384989293f86f944aa474f554716b9da, type: 3}
+  m_GoldenClip: {fileID: 8300000, guid: 102421e2b2c81a446bc52dc42d16359f, type: 3}
   m_MissClip: {fileID: 8300000, guid: 228603e185eced94696d0d3715e9935b, type: 3}
   m_HazardClip: {fileID: 8300000, guid: 97034c23794e3c849872f4983cd65cea, type: 3}
   m_GameOverClip: {fileID: 8300000, guid: 3e68d03ea65a0bd4fa1875a723fffc8c, type: 3}

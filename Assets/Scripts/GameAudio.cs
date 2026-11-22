@@ -26,6 +26,10 @@ public class GameAudio : MonoBehaviour
     AudioClip m_CatchClip;
 
     [SerializeField]
+    [Tooltip("Optional. Played instead of the catch sound for fruit that adds to the streak, the golden apple.")]
+    AudioClip m_GoldenClip;
+
+    [SerializeField]
     [Tooltip("Played when fruit reaches the floor. Not played for fruit to avoid, which is meant to fall.")]
     AudioClip m_MissClip;
 
@@ -134,8 +138,9 @@ public class GameAudio : MonoBehaviour
     void OnFruitLanded(Fruit fruit, bool caught)
     {
         bool isHazard = fruit.type.isHazard;
+        bool isSpecial = fruit.type.streakBonus > 0 && m_GoldenClip != null;
         if (caught)
-            Play(isHazard ? m_HazardClip : m_CatchClip);
+            Play(isHazard ? m_HazardClip : isSpecial ? m_GoldenClip : m_CatchClip);
         else if (!isHazard)
             Play(m_MissClip);
     }

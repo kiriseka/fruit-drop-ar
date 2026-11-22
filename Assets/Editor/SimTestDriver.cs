@@ -39,7 +39,7 @@ public static class SimTestDriver
     }
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,hud-feedback,screens,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,pause-menu,pause-menu-again,hud-feedback,screens,scene-polish,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -110,6 +110,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/pause-menu, then again")] static void MenuPauseMenu() => RunQueue("pause-menu,pause-menu-again");
     [MenuItem("Fruit Drop/Sim/hud-feedback")] static void MenuHudFeedback() => RunQueue("hud-feedback");
     [MenuItem("Fruit Drop/Sim/screens")] static void MenuScreens() => RunQueue("screens");
+    [MenuItem("Fruit Drop/Sim/scene-polish")] static void MenuScenePolish() => RunQueue("scene-polish");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -259,6 +260,7 @@ public static class SimTestDriver
             "pause-menu-again" => PauseMenuAgain(),
             "hud-feedback" => HudFeedback(),
             "screens" => Screens(),
+            "scene-polish" => ScenePolish(),
             _ => null,
         };
 
@@ -629,6 +631,12 @@ public static class SimTestDriver
         }
 
         yield return 0.5f;
+
+        // The start screen's title would cover the row in the editor's short landscape view.
+        var title = FindDeep("Game Title");
+        if (title != null)
+            title.gameObject.SetActive(false);
+
         foreach (var fruit in fruits)
         {
             var marker = fruit.GetComponentInChildren<LandingMarker>(true);
@@ -2219,6 +2227,127 @@ public static class SimTestDriver
         CheckLayout("game over", safe, "Game Over Panel");
         CheckLayout("game over panel", safe, "Title", "Final Score Text", "Best Text", "Stats Text", "Restart Button");
         ARStatusText.showDebugInEditor = true;
+    }
+
+    // The fill opacity of every plane now, as "0.33" or a range.
+    static string PlaneAlphas(PlaneVisibility planes)
+    {
+        float lowest = float.MaxValue, highest = 0f;
+        int count = 0;
+        foreach (var plane in Object.FindAnyObjectByType<ARPlaneManager>().trackables)
+        {
+            float alpha = planes.FillAlphaOf(plane);
+            lowest = Mathf.Min(lowest, alpha);
+            highest = Mathf.Max(highest, alpha);
+            count++;
+        }
+
+        return count == 0 ? "no planes" : Mathf.Approximately(lowest, highest) ? $"{lowest:F3} on {count} planes" : $"{lowest:F3}-{highest:F3} on {count} planes";
+    }
+
+    /// <summary>
+    /// V1.0 polish step 5: the plane overlay fades during the countdown and the round and comes back at Game
+    /// Over; the golden apple falls with a sparkle trail and its catch plays the chime; a red apple has neither.
+    /// </summary>
+    static IEnumerator<float> ScenePolish()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var audio = Object.FindAnyObjectByType<GameAudio>();
+        var planes = Object.FindAnyObjectByType<PlaneVisibility>();
+        if (planes == null)
+        {
+            Log("FAIL: no PlaneVisibility in the scene");
+            yield break;
+        }
+
+        var sounds = new List<string>();
+        void Played(AudioClip clip)
+        {
+            if (clip.name != "SpawnCue")
+                sounds.Add(clip.name);
+        }
+
+        audio.played += Played;
+        spawner.QueueTypes(new[] { LoadType("GoldenApple"), LoadType("RedApple"), LoadType("RedApple") });
+        var wait = WaitForPlaneFloor(follower);
+        while (wait.MoveNext())
+            yield return wait.Current;
+
+        var scan = ScanRoom(10f);
+        while (scan.MoveNext())
+            yield return scan.Current;
+
+        float readyWait = Time.time;
+        while (game.state != GameStateManager.GameState.Ready && Time.time - readyWait < 10f)
+            yield return 0.25f;
+
+        Log($"Ready: plane fill {PlaneAlphas(planes)}, overlay visibility {planes.visibility:F2}");
+        FindButton("Start Button").onClick.Invoke();
+        yield return 0.25f;
+        Log($"0.25 s into the countdown: plane fill {PlaneAlphas(planes)}, visibility {planes.visibility:F2}");
+        yield return 0.5f;
+        Log($"0.75 s into the countdown: plane fill {PlaneAlphas(planes)}, visibility {planes.visibility:F2}");
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        // Follow the fruit: the golden apple comes first, then two red ones.
+        Fruit golden = null, red = null;
+        int goldenSparkles = 0, redSparkles = 0;
+        bool captured = false;
+        float start = Time.time;
+        while (spawner.caughtCount < 3 && Time.time - start < 20f)
+        {
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                var trail = fruit.GetComponentInChildren<ParticleSystem>();
+                int count = trail != null ? trail.particleCount : 0;
+                if (fruit.type.streakBonus > 0)
+                {
+                    golden = fruit;
+                    goldenSparkles = Mathf.Max(goldenSparkles, count);
+                    // Half way down, look at the apple itself for a moment and capture its trail.
+                    if (!captured && fruit.transform.position.y < follower.floorHeight + 1.3f)
+                    {
+                        LookAt(fruit.transform.position);
+                        ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-scene-polish.png"));
+                        captured = true;
+                        yield return 0f;
+                        yield return 0f;
+                    }
+                }
+                else
+                {
+                    red = fruit;
+                    redSparkles = Mathf.Max(redSparkles, count);
+                }
+            }
+
+            var next = NextToLand(spawner, follower, true);
+            if (next != null)
+            {
+                var spot = next.transform.position;
+                spot.y = follower.floorHeight;
+                LookAt(spot);
+            }
+
+            yield return 0f;
+        }
+
+        Log($"Playing: plane fill {PlaneAlphas(planes)}, visibility {planes.visibility:F2}");
+        Log($"Golden apple trail: up to {goldenSparkles} sparkles in the air; red apple: {(red != null && red.GetComponentInChildren<ParticleSystem>() != null ? "has a particle system" : "no particle system")}, {redSparkles} sparkles");
+        Log($"Sounds for the three catches: {string.Join(", ", sounds)}");
+
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        float overStart = Time.time;
+        while (game.state != GameStateManager.GameState.GameOver && Time.time - overStart < 30f)
+            yield return 0.1f;
+
+        yield return 0.8f;
+        audio.played -= Played;
+        Log($"Game Over + 0.8 s: plane fill {PlaneAlphas(planes)}, visibility {planes.visibility:F2}");
     }
 
     // Saves a Game view capture once play time reaches the given moment.

@@ -22,14 +22,37 @@ public static class SoundGenerator
         Write("SpawnCue", SpawnCue());
         Write("RottenBuzz", RottenBuzz());
         Write("GameOver", GameOver());
+        Write("GoldenChime", GoldenChime());
         AssetDatabase.Refresh();
-        Debug.Log($"[SoundGenerator] Wrote 5 sounds to {k_Folder}");
+        Debug.Log($"[SoundGenerator] Wrote 6 sounds to {k_Folder}");
     }
 
     // A short rising chirp: bright and quick, so many catches in a row stay pleasant.
     static float[] CatchPop()
     {
         return Tone(0.12f, t => Mathf.Lerp(500f, 950f, t / 0.12f), t => Attack(t, 0.004f) * Mathf.Exp(-t / 0.035f), Sine, 0.8f);
+    }
+
+    // Two bell-like notes going up (E6, then B6), for the rare golden apple: brighter and longer than the pop.
+    static float[] GoldenChime()
+    {
+        float[] starts = { 0f, 0.09f };
+        float[] frequencies = { 1318.5f, 1975.5f };
+        var samples = new float[(int)(0.6f * k_SampleRate)];
+        for (int note = 0; note < starts.Length; note++)
+        {
+            int first = (int)(starts[note] * k_SampleRate);
+            for (int i = first; i < samples.Length; i++)
+            {
+                float t = (i - first) / (float)k_SampleRate;
+                float x = 2f * Mathf.PI * frequencies[note] * t;
+
+                // A bell's overtones sit above the note and die away faster than it.
+                samples[i] += Attack(t, 0.003f) * (Mathf.Exp(-t / 0.22f) * Mathf.Sin(x) + 0.35f * Mathf.Exp(-t / 0.08f) * Mathf.Sin(2.76f * x));
+            }
+        }
+
+        return Normalize(samples, 0.6f);
     }
 
     // A low falling note with a puff of muffled noise, like fruit hitting the floor.

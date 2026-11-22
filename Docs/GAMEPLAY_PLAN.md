@@ -6,7 +6,7 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** V1.0 polish step 5 (plane overlay fade, golden apple trail and chime).
+- **Next step:** V1.0 polish step 6 (balance check with a modelled human player).
 - **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
@@ -425,7 +425,13 @@ The user waived the phone test on 2026-11-22: polish the game, verify it in XR S
     - New best: `CatchEffects` throws 70 confetti pieces in the fruits' colours up in front of the phone at Game Over.
   - **Sim scenario `screens`** (Realme 7 portrait view, best set to 40): title, tagline and "v1.0.0" shown while scanning and ready, hidden from the countdown; the Start button's scale went 1.000–1.060 over 1.4 s and back to 1.00 at the countdown. After the planned round: 205 points, 8 caught and best streak 7 (both as worked by hand), stats "8 caught · best streak 7 · 0:23", "New best!", 1 confetti burst. All parts inside the safe area and all text fits, title included. Captures in `Builds/V1.0-polish-screens.png` (not in git).
   - `portrait`, `feedback` and `hud` unchanged in their results (`feedback` leaves the confetti out of its list, since it depends on the saved best). EditMode tests: 42 passed (round stats and the reported points added); PlayMode 1 passed.
-- [ ] 5. **Scene polish:** fade the AR plane overlay during rounds; a sparkle trail and a chime for the golden apple.
+- [x] 5. **Scene polish:** fade the AR plane overlay during rounds; a sparkle trail and a chime for the golden apple.
+  - **Done.** `PlaneVisibility.cs` on the XR Origin fades the planes over 0.5 s from the countdown until Game Over: the cyan fill keeps 15 % of its opacity (0.33 → 0.05), set by a property block on the fill material only (the plane's second material receives the basket's shadow and is left alone), and the opaque white outline thins to 30 % of its width. Planes found mid-round get the same treatment within 0.25 s.
+    - Golden apple: `Assets/Editor/GoldenTrailBuilder.cs` (menu **Fruit Drop > Build Golden Apple Trail**) adds a sparkle trail to `GoldenApple.prefab`: 40 gold-white sparkles a second, 5–8 cm, fading and shrinking in about half a second. A first try at 2–4 cm was only a few pixels at play distance.
+    - `SoundGenerator` makes a sixth sound, `GoldenChime` (two bell-like notes, E6 then B6, 0.6 s); `GameAudio` plays it instead of the pop for fruit that adds to the streak.
+  - **Sim scenario `scene-polish`:** plane fill 0.330 at Ready, 0.187 at 0.25 s into the countdown, 0.050 at 0.75 s and through the round, 0.330 again 0.8 s after Game Over. Up to 25 sparkles in the air behind the falling golden apple; red apples have no trail. Sounds for golden, red, red: GoldenChime, CatchPop, CatchPop. A close capture shows the trail (`Builds/V1.0-polish-golden-trail.png`, not in git).
+  - `variety`, `marker` and `feedback` unchanged (`variety` hides the start title, which in the editor's landscape view covered the row).
+  - Unity's URP material check rewrote `ARPlaneVisible.mat` on the way (passes a transparent material never uses, a legacy colour field). Nothing renders differently; it is left uncommitted like the other generated churn.
 - [ ] 6. **Balance check** with a modelled human player (120°/s turns, 0.25 s reaction, 5 cm aim error). If the median round lasts under 75 s, ease the late curve (shortest gap 0.85 s, top speed ×1.45) and measure again; otherwise keep the accepted numbers.
 - [ ] 7. **Final v1.0:** full regression and tests, version code 12, APK and Xcode export, tag `v1.0`, full GitHub release, fast-forward `main` to `gameplay`.
 
