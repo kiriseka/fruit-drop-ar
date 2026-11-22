@@ -6,7 +6,8 @@ This file is the single source of truth for the gameplay phase. Any session that
 
 - **Frozen version:** v0.3.1 on `main` (V0.3 game plus the iOS build settings). Tags `v*` are locked on GitHub, so they cannot be moved or deleted.
 - **Work branch:** `gameplay`.
-- **Next step:** none until the user has tested on a phone. The run's goal is reached: V0.6, V0.7 and V0.8 are done, and `v1.0-rc2` (rc1 plus two portrait layout fixes) is published. What follows is the "V1.0 (needs the user)" section at the end of this file.
+- **Next step:** V1.0 polish step 2 (pause menu and settings).
+- **Goal of this run** (the user, 2026-11-22): polish the game until it is finished and test it in XR Simulation only; the phone test is no longer a condition. Then the final `v1.0` release and the merge into `main`. The report and deck stay out of this run.
 - **Goal of the current run** (agreed with the user): finish V0.6, V0.7 and V0.8 in XR Simulation, then build a v1.0 release candidate (`v1.0-rc1`: APK and iOS export). The full v1.0 release and the merge into `main` wait for the user's phone test. The user allowed GitHub pre-releases to be published from an interactive session. The report and deck are not part of this run.
 - **Waiting on user:**
   - Phone test of release candidate 2 (`Builds/V1.0-rc2.apk`, also on the v1.0-rc2 GitHub pre-release; it replaces rc1) on the Realme 7, with the 11-point checklist in its release notes. It is the "Fruit Drop AR" app (new app ID since V0.8). Nothing since V0.3 has been tested on a phone, so it covers the V0.5 points (Start button, score bar, hearts, countdown, Game Over panel), the V0.6 points (telling the fruits apart, rings, difficulty, doubles), the V0.7 ones, and V0.8's: the resume countdown, any pauses that come by themselves, and a 15-minute session with profiling.
@@ -392,12 +393,24 @@ This file is the single source of truth for the gameplay phase. Any session that
   - `Builds/V1.0-rc2.apk`, 35.1 MB: 0 errors, 350 warnings, 3.8 min; `aapt` reads `com.kiriseka.fruitdropar`, version 1.0.0 (11), "Fruit Drop AR". Xcode project `Builds/iOS-v1.0-rc2` (0 errors, 2.0 min, bundle ID `com.kiriseka.fruitdropar`, build number 11), zipped as `Builds/FruitDropAR-iOS-Xcode-v1.0-rc2.zip`.
   - `gameplay` pushed, tagged `v1.0-rc2`, pre-release published with both files and `Builds/V1.0-rc2-release-notes.md` (not in git). rc1 stays as it was; its tag is locked.
 
-## V1.0 (needs the user)
+## V1.0 polish (sim only, agreed with the user)
 
-- [ ] Realme 7 phone test, a playtest with 3–5 players, profiling and a 15-minute session.
-- [ ] Fix what the phone tests and playtests found.
-- [ ] Final APK and iOS Xcode export, tag `v1.0`, full release, merge `gameplay` into `main`.
-- [ ] Update the report and deck in `Reports/`, local only.
+The user waived the phone test on 2026-11-22: polish the game, verify it in XR Simulation, then release v1.0. The release notes must say it was not tested on a phone.
+
+- [x] 0. **Setup.** Unity had been left with a "Scene Backup Detected" dialog from an unclean exit. The backup was the automatic copy Unity makes on entering Play mode, taken after the last saved and committed scene with no edits since, so it was moved aside (not deleted) and the editor restarted. Baseline: `floor-edge` floor y 0.005; `score-round` 205 as worked by hand.
+- [x] 1. **Mobile basics:** keep the screen awake while scanning and playing; pause when the app goes to the background; the Android back key pauses and resumes a round.
+  - **Done.** `GameStateManager` now has a player pause (`PauseByPlayer`, `ResumeByPlayer`, `RestartFromPause`, `isPausedByPlayer`, `playerPauseChanged`). A player pause holds the round, or the countdown, until the player resumes, even with tracking good; resuming goes through the existing 3-2-1.
+    - Screen sleep: never while scanning, counting down and playing; the phone's own setting at Game Over and during a player pause.
+    - `OnApplicationPause(true)` during a round is a player pause, so the round waits for the player when they come back.
+    - Back key (Escape in the Input System): resumes a player pause, pauses a round, and outside a round sends the app to the background on Android (`moveTaskToBack`, so nothing is lost).
+    - `FruitDropAR` and `FruitDropAR.Editor` now refer to `Unity.InputSystem`.
+  - **Sim scenario `mobile`:** sleep "never" while scanning and playing; app to the background mid-round → Paused by the player, sleep back to the phone's setting, fruit 0.0000 m in 2 s, still paused 2 s after coming back with tracking good; back key → Resuming with the fruit held (0.0000 m in 1 s), then Playing with the fruit moving (0.245 m in 0.3 s); back key in a round → Paused; restart from the pause → Countdown with score 0, 3 lives, no fruit left falling; a pause in the countdown holds it (0.000 s in 1 s); Game Over → the phone's setting; back at Game Over leaves the game state alone. All three back presses arrived through the Input System (the driver lets input through without Game view focus for this scenario).
+- [ ] 2. **Pause menu and settings:** a pause button in rounds; a panel with Resume, Restart, sound on/off and vibration on/off, kept in PlayerPrefs.
+- [ ] 3. **HUD feedback:** "+points" pop-ups, a combo call-out, a score that counts up, a punch on the multiplier, hearts that shake before they dim.
+- [ ] 4. **Start and Game Over screens:** title and version on the start screen, a pulsing Start button; round stats on Game Over; confetti for a new best.
+- [ ] 5. **Scene polish:** fade the AR plane overlay during rounds; a sparkle trail and a chime for the golden apple.
+- [ ] 6. **Balance check** with a modelled human player (120°/s turns, 0.25 s reaction, 5 cm aim error). If the median round lasts under 75 s, ease the late curve (shortest gap 0.85 s, top speed ×1.45) and measure again; otherwise keep the accepted numbers.
+- [ ] 7. **Final v1.0:** full regression and tests, version code 12, APK and Xcode export, tag `v1.0`, full GitHub release, fast-forward `main` to `gameplay`.
 
 ## Resume prompt (for scheduled tasks)
 

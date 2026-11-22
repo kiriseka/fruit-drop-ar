@@ -39,7 +39,7 @@ public static class SimTestDriver
     }
 
     // Every scenario, in the order the regression run plays them.
-    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,long-round";
+    const string k_AllScenarios = "floor-edge,drop,marker,spawner,play,states,flow,hud,score-round,best,curve,picks,variety,feedback,onboarding,onboarding-again,point-memory,portrait,mobile,long-round";
 
     static IEnumerator<float> s_Routine;
     static float s_ResumeTime;
@@ -106,6 +106,7 @@ public static class SimTestDriver
     [MenuItem("Fruit Drop/Sim/feedback")] static void MenuFeedback() => RunQueue("feedback");
     [MenuItem("Fruit Drop/Sim/onboarding, then again")] static void MenuOnboarding() => RunQueue("onboarding,onboarding-again");
     [MenuItem("Fruit Drop/Sim/portrait")] static void MenuPortrait() => RunQueue("portrait");
+    [MenuItem("Fruit Drop/Sim/mobile")] static void MenuMobile() => RunQueue("mobile");
 
     // Any other selection: the comma-separated list in Temp/SimTest.queue.
     [MenuItem("Fruit Drop/Sim/From Queue File")] static void MenuFromFile() => RunQueue(File.ReadAllText("Temp/SimTest.queue").Trim());
@@ -243,6 +244,7 @@ public static class SimTestDriver
             "onboarding-again" => Onboarding(false),
             "point-memory" => PointMemory(),
             "portrait" => Portrait(),
+            "mobile" => Mobile(),
             _ => null,
         };
 
@@ -1691,6 +1693,170 @@ public static class SimTestDriver
         ScreenCapture.CaptureScreenshot(Path.GetFullPath("Temp/SimTest-portrait-5-gameover.png"));
         yield return 0.3f;
         ARStatusText.showDebugInEditor = true;
+    }
+
+    static string SleepName(int timeout)
+    {
+        return timeout == SleepTimeout.NeverSleep ? "never" : timeout == SleepTimeout.SystemSetting ? "phone's setting" : timeout.ToString();
+    }
+
+    // A press or a release of Escape, which is how the Android back key reaches the Input System.
+    static void QueueEscape(bool down)
+    {
+        var keyboard = UnityEngine.InputSystem.Keyboard.current;
+        if (keyboard == null)
+            return;
+
+        UnityEngine.InputSystem.InputSystem.QueueStateEvent(keyboard,
+            down ? new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.Escape) : new UnityEngine.InputSystem.LowLevel.KeyboardState());
+    }
+
+    /// <summary>
+    /// Presses and releases the back key through the Input System. Returns false when the press never arrived,
+    /// for example because the editor dropped it, in which case the back handler is called directly instead.
+    /// </summary>
+    static IEnumerator<float> PressBack(GameStateManager game, System.Func<bool> arrived, List<string> notes)
+    {
+        QueueEscape(true);
+        yield return 0f;
+        yield return 0.1f;
+        QueueEscape(false);
+        yield return 0.1f;
+        if (arrived())
+        {
+            notes.Add("Input System");
+            yield break;
+        }
+
+        notes.Add("direct call");
+        game.SendMessage("OnBackPressed");
+        yield return 0.1f;
+    }
+
+    /// <summary>
+    /// V1.0 polish step 1: the screen stays awake while scanning and playing and follows the phone's setting
+    /// at Game Over and in a player pause; leaving the app pauses the round and it waits for the player;
+    /// the back key resumes and pauses; the pause menu's restart and a pause during the countdown work.
+    /// </summary>
+    static IEnumerator<float> Mobile()
+    {
+        var follower = Object.FindAnyObjectByType<FloorBasketFollower>();
+        var game = Object.FindAnyObjectByType<GameStateManager>();
+        var spawner = Object.FindAnyObjectByType<FruitSpawner>();
+        var score = Object.FindAnyObjectByType<ScoreManager>();
+
+        // Key presses only reach the game when the Game view has focus, which a test run cannot count on.
+        var inputSettings = UnityEngine.InputSystem.InputSystem.settings;
+        var oldBackground = inputSettings.backgroundBehavior;
+        var oldEditorInput = inputSettings.editorInputBehaviorInPlayMode;
+        inputSettings.backgroundBehavior = UnityEngine.InputSystem.InputSettings.BackgroundBehavior.IgnoreFocus;
+        inputSettings.editorInputBehaviorInPlayMode = UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+        var backVia = new List<string>();
+
+        yield return 0.5f;
+        Log($"Scanning: screen sleep {SleepName(Screen.sleepTimeout)}");
+        spawner.QueueTypes(Repeat("RedApple", 60));
+        var start = ScanAndStart(follower, game);
+        while (start.MoveNext())
+            yield return start.Current;
+
+        if (game.state != GameStateManager.GameState.Playing)
+            yield break;
+
+        Log($"Playing: screen sleep {SleepName(Screen.sleepTimeout)}");
+
+        // A fruit well up in the air, followed so it would be caught if it fell.
+        Fruit falling = null;
+        float wait = Time.time;
+        while (falling == null && Time.time - wait < 6f)
+        {
+            foreach (var fruit in spawner.GetComponentsInChildren<Fruit>())
+            {
+                if (fruit.transform.position.y > follower.floorHeight + 1.2f)
+                    falling = fruit;
+            }
+
+            yield return 0.05f;
+        }
+
+        if (falling == null)
+        {
+            Log("FAIL: no fruit fell within 6 s");
+            yield break;
+        }
+
+        // 1. The app goes to the background mid-round and comes back.
+        game.SendMessage("OnApplicationPause", true);
+        yield return 0f;
+        float heldY = falling.transform.position.y;
+        yield return 2f;
+        Log($"App in the background: {game.state}, paused by the player {game.isPausedByPlayer}, screen sleep {SleepName(Screen.sleepTimeout)}, " +
+            $"fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m in 2 s");
+        game.SendMessage("OnApplicationPause", false);
+        yield return 2f;
+        Log($"App back, tracking good, 2 s later: {game.state}, paused by the player {game.isPausedByPlayer}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m");
+
+        // 2. The back key resumes: a 3-2-1 with the fruit still held, then the fruit moves again.
+        var press = PressBack(game, () => !game.isPausedByPlayer, backVia);
+        while (press.MoveNext())
+            yield return press.Current;
+
+        float resumeStart = Time.time;
+        while (game.state == GameStateManager.GameState.Paused && Time.time - resumeStart < 5f)
+            yield return 0f;
+
+        heldY = falling.transform.position.y;
+        yield return 1f;
+        Log($"Back key: {game.state}, {game.countdownRemaining:F2} s to go, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F4} m in 1 s, screen sleep {SleepName(Screen.sleepTimeout)}");
+        while (game.state == GameStateManager.GameState.Resuming && Time.time - resumeStart < 10f)
+            yield return 0f;
+
+        heldY = falling.transform.position.y;
+        yield return 0.3f;
+        Log($"  then {game.state}, fruit moved {Mathf.Abs(falling.transform.position.y - heldY):F3} m in 0.3 s");
+
+        // 3. The back key pauses a running round.
+        press = PressBack(game, () => game.isPausedByPlayer, backVia);
+        while (press.MoveNext())
+            yield return press.Current;
+
+        Log($"Back key in a round: {game.state}, paused by the player {game.isPausedByPlayer}, spawner paused {spawner.isPaused}");
+
+        // 4. Restart from the pause: a fresh countdown, nothing left falling.
+        int scoreBefore = score.score;
+        game.RestartFromPause();
+        yield return 0.1f;
+        Log($"Restart from the pause (score was {scoreBefore}): {game.state}, {game.countdownRemaining:F2} s to go, score {score.score}, lives {score.lives}, " +
+            $"fruit falling {spawner.GetComponentsInChildren<Fruit>().Length}, spawning {spawner.isSpawning}, paused by the player {game.isPausedByPlayer}");
+
+        // 5. A pause during the countdown holds it.
+        yield return 0.5f;
+        game.PauseByPlayer();
+        yield return 0f;
+        float held = game.countdownRemaining;
+        yield return 1f;
+        Log($"Paused in the countdown: {game.state}, paused {game.isPaused}, countdown moved {held - game.countdownRemaining:F3} s in 1 s");
+        game.ResumeByPlayer();
+        var countdown = WaitForPlaying(game);
+        while (countdown.MoveNext())
+            yield return countdown.Current;
+
+        // 6. Game Over hands the screen back to the phone's setting.
+        simCamera.rotation = Quaternion.Euler(89f, simCamera.eulerAngles.y, 0f);
+        float overStart = Time.time;
+        while (game.state != GameStateManager.GameState.GameOver && Time.time - overStart < 30f)
+            yield return 0.1f;
+
+        Log($"{game.state}: screen sleep {SleepName(Screen.sleepTimeout)}");
+
+        // 7. Outside a round the back key does not touch the game (on a phone it sends the app to the background).
+        press = PressBack(game, () => true, backVia);
+        while (press.MoveNext())
+            yield return press.Current;
+
+        Log($"Back key at Game Over: {game.state}. Back key presses arrived through: {string.Join(", ", backVia)}");
+        inputSettings.backgroundBehavior = oldBackground;
+        inputSettings.editorInputBehaviorInPlayMode = oldEditorInput;
     }
 
     // Saves a Game view capture once play time reaches the given moment.
